@@ -22,7 +22,7 @@ jobs:
         uses: NuGet/setup-nuget@v2
 
       - name: Restore NuGet Packages
-        run: nuget restore FiserveDotnetFrameworkTest.sln
+        run: nuget restore FiserveDotnetFrameworkTest.csproj
 
       - name: Build Solution
-        run: msbuild FiserveDotnetFrameworkTest.sln /p:Configuration=Release
+        run: msbuild FiserveDotnetFrameworkTest.csproj /p:Configuration=Release
