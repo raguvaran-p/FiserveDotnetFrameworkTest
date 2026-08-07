@@ -1,1 +1,29 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
+  <Package
+      Name="FiserveDotnetFrameworkTest"
+      Manufacturer="Fiserv"
+      Version="1.0.0"
+      UpgradeCode="{8B7A9F20-5C43-4D92-9B4E-6F1D3A8C5271}"
+      Compressed="true">
+
+    <MajorUpgrade
+        DowngradeErrorMessage="A newer version of FiserveDotnetFrameworkTest is already installed." />
+
+    <MediaTemplate />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+
+      <Directory
+          Id="INSTALLFOLDER"
+          Name="FiserveDotnetFrameworkTest">
+
+        <Files Include="$(var.PublishDir)\**" />
+
+      </Directory>
+
+    </StandardDirectory>
+
+  </Package>
+
+</Wix>
