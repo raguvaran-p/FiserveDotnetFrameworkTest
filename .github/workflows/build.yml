@@ -22,7 +22,33 @@ jobs:
         uses: NuGet/setup-nuget@v2
 
       - name: Restore NuGet Packages
-        run: nuget restore FiserveDotnetFrameworkTest.slnx
+        name: Build ASP.NET Framework Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet Packages
+        run: |
+          nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
 
       - name: Build Solution
-        run: msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+        run: |
+          msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
