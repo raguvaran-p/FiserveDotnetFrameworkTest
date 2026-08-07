@@ -51,10 +51,17 @@ jobs:
       - name: Build MSI
         shell: pwsh
         run: |
-          wix build Installer\Product.wxs `
-          -d PublishDir="${{ github.workspace }}\publish" `
-          -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+          Write-Host "===== BUILDING MSI ====="
 
+          wix build `
+            -acceptEula wix7 `
+            -d PublishDir="${{ github.workspace }}\publish" `
+            Installer\Product.wxs `
+            -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
+          Write-Host "===== MSI BUILD COMPLETE ====="
+          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+          
       - name: Verify MSI
         shell: pwsh
         run: |
