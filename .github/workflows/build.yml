@@ -42,3 +42,28 @@ jobs:
         run: |
           Write-Host "===== PUBLISH DIRECTORY ====="
           Get-ChildItem "${{ github.workspace }}\publish" -Recurse
+
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+           
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          wix build Installer\Product.wxs `
+          -dPublishDir="${{ github.workspace }}\publish" `
+          -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
+      - name: Verify MSI
+        shell: pwsh
+        run: |
+          Write-Host "===== MSI OUTPUT ====="
+          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
+      - name: Upload MSI Artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: FiserveDotnetFrameworkTest-MSI
+            path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
+
