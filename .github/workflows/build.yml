@@ -27,3 +27,11 @@ jobs:
       - name: Build Solution
         run: |
           msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+      - name: Publish ASP.NET Application
+        run: |
+          msbuild FiserveDotnetFrameworkTest.csproj `
+            /p:Configuration=Release `
+            /p:DeployOnBuild=true `
+            /p:WebPublishMethod=FileSystem `
+            /p:DeleteExistingFiles=true `
+            /p:PublishUrl="${{ github.workspace }}\publish"
