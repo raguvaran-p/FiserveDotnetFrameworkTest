@@ -33,6 +33,7 @@ jobs:
           msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:DeployOnBuild=true `
+            /p:DeployDefaultTarget=WebPublish `
             /p:WebPublishMethod=FileSystem `
             /p:DeleteExistingFiles=true `
             /p:PublishUrl="${{ github.workspace }}\publish"
