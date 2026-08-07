@@ -7,7 +7,6 @@ on:
 
 jobs:
   build:
-
     runs-on: windows-latest
 
     steps:
@@ -24,9 +23,11 @@ jobs:
       - name: Restore NuGet Packages
         run: |
           nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
+
       - name: Build Solution
         run: |
           msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+
       - name: Publish ASP.NET Application
         run: |
           msbuild FiserveDotnetFrameworkTest.csproj `
@@ -35,3 +36,8 @@ jobs:
             /p:WebPublishMethod=FileSystem `
             /p:DeleteExistingFiles=true `
             /p:PublishUrl="${{ github.workspace }}\publish"
+
+      - name: Verify Publish Output
+        run: |
+          Write-Host "===== PUBLISH DIRECTORY ====="
+          Get-ChildItem "${{ github.workspace }}\publish" -Recurse
