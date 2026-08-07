@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           wix build Installer\Product.wxs `
-          -dPublishDir="${{ github.workspace }}\publish" `
+          -d PublishDir="${{ github.workspace }}\publish" `
           -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
 
       - name: Verify MSI
