@@ -59,8 +59,7 @@ jobs:
             Installer\Product.wxs `
             -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
 
-          Write-Host "===== MSI BUILD COMPLETE ====="
-          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
           
       - name: Verify MSI
         shell: pwsh
