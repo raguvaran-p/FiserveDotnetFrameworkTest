@@ -62,8 +62,8 @@ jobs:
           Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
 
       - name: Upload MSI Artifact
-          uses: actions/upload-artifact@v4
-          with:
-            name: FiserveDotnetFrameworkTest-MSI
-            path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
+        uses: actions/upload-artifact@v4
+        with:
+          name: FiserveDotnetFrameworkTest-MSI
+          path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
 
