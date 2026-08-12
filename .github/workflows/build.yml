@@ -15,25 +15,42 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Verify Windows Installer Components
+            - name: Verify Windows Installer Components
         shell: pwsh
         run: |
           Write-Host "===== WINDOWS VERSION ====="
-          Get-ComputerInfo |
-            Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+          cmd /c ver
 
           Write-Host ""
           Write-Host "===== WINDOWS INSTALLER DLL ====="
-          Get-Item "$env:WINDIR\System32\msi.dll"
+          if (Test-Path "$env:WINDIR\System32\msi.dll") {
+              Write-Host "msi.dll FOUND"
+              Get-Item "$env:WINDIR\System32\msi.dll" |
+                Select-Object FullName, Length
+          }
+          else {
+              Write-Error "msi.dll NOT FOUND"
+              exit 1
+          }
 
           Write-Host ""
           Write-Host "===== MAKECAB ====="
-          Get-Item "$env:WINDIR\System32\makecab.exe"
+          if (Test-Path "$env:WINDIR\System32\makecab.exe") {
+              Write-Host "makecab.exe FOUND"
+              Get-Item "$env:WINDIR\System32\makecab.exe" |
+                Select-Object FullName, Length
+          }
+          else {
+              Write-Error "makecab.exe NOT FOUND"
+              exit 1
+          }
 
           Write-Host ""
           Write-Host "===== DOTNET ====="
-          dotnet --info
+          dotnet --version
 
+          Write-Host ""
+          Write-Host "===== VERIFICATION COMPLETE ====="
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
