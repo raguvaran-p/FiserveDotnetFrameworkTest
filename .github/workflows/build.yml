@@ -15,7 +15,7 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-            - name: Verify Windows Installer Components
+      - name: Verify Windows Installer Components
         shell: pwsh
         run: |
           Write-Host "===== WINDOWS VERSION ====="
