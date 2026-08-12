@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 
 internal class Program
 {
+    private const int MSIDBOPEN_CREATE = 3;
+
     [DllImport("msi.dll", CharSet = CharSet.Unicode)]
     private static extern uint MsiOpenDatabase(
         string szDatabasePath,
@@ -13,42 +16,84 @@ internal class Program
     private static extern uint MsiCloseHandle(
         IntPtr hAny);
 
-    private const int MSIDBOPEN_CREATE = 3;
+    [DllImport("msi.dll")]
+    private static extern uint MsiDatabaseCommit(
+        IntPtr hDatabase);
 
-    static int Main(string[] args)
+    static int Main()
     {
         Console.WriteLine("======================================");
         Console.WriteLine(" Windows Installer API Test");
         Console.WriteLine("======================================");
 
+        string testMsi = Path.Combine(
+            Path.GetTempPath(),
+            "MsiBuilderTest.msi");
+
         Console.WriteLine();
-        Console.WriteLine("Windows Installer DLL:");
-        Console.WriteLine(@"C:\Windows\System32\msi.dll");
+        Console.WriteLine($"Test MSI: {testMsi}");
 
-        IntPtr database;
-
-        uint result = MsiOpenDatabase(
-            ":memory:",
-            MSIDBOPEN_CREATE,
-            out database);
-
-        if (result != 0)
+        if (File.Exists(testMsi))
         {
-            Console.WriteLine(
-                $"MsiOpenDatabase failed. Error: {result}");
-
-            return 1;
+            File.Delete(testMsi);
         }
 
-        Console.WriteLine();
-        Console.WriteLine("Windows Installer API is available.");
-        Console.WriteLine("MSI database opened successfully.");
+        IntPtr database = IntPtr.Zero;
 
-        MsiCloseHandle(database);
+        try
+        {
+            uint result = MsiOpenDatabase(
+                testMsi,
+                MSIDBOPEN_CREATE,
+                out database);
 
-        Console.WriteLine();
-        Console.WriteLine("Stage 3 completed successfully.");
+            if (result != 0)
+            {
+                Console.WriteLine(
+                    $"MsiOpenDatabase failed. Error: {result}");
 
-        return 0;
+                return 1;
+            }
+
+            Console.WriteLine(
+                "MSI database opened successfully.");
+
+            result = MsiDatabaseCommit(database);
+
+            if (result != 0)
+            {
+                Console.WriteLine(
+                    $"MsiDatabaseCommit failed. Error: {result}");
+
+                return 1;
+            }
+
+            Console.WriteLine(
+                "MSI database committed successfully.");
+
+            if (!File.Exists(testMsi))
+            {
+                Console.WriteLine(
+                    "ERROR: MSI database file was not created.");
+
+                return 1;
+            }
+
+            FileInfo info = new FileInfo(testMsi);
+
+            Console.WriteLine();
+            Console.WriteLine("SUCCESS");
+            Console.WriteLine($"File: {info.FullName}");
+            Console.WriteLine($"Size: {info.Length} bytes");
+
+            return 0;
+        }
+        finally
+        {
+            if (database != IntPtr.Zero)
+            {
+                MsiCloseHandle(database);
+            }
+        }
     }
 }
