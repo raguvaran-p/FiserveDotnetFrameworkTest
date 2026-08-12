@@ -3,8 +3,9 @@ name: Build ASP.NET Framework Application
 on:
   push:
     branches:
-      - main
-
+      - backup-msi-ci-working
+  workflow_dispatch:
+  
 jobs:
   build:
     runs-on: windows-2022
