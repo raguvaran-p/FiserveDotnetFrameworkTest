@@ -14,7 +14,7 @@ jobs:
 
       - name: Checkout Source Code
         uses: actions/checkout@v4
-
+#
       - name: Verify Windows Installer Components
         shell: pwsh
         run: |
@@ -51,6 +51,7 @@ jobs:
 
           Write-Host ""
           Write-Host "===== VERIFICATION COMPLETE ====="
+     #     
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
@@ -79,6 +80,21 @@ jobs:
         run: |
           Write-Host "===== PUBLISH DIRECTORY ====="
           Get-ChildItem "${{ github.workspace }}\publish" -Recurse
+#
+      - name: Build MSI Builder
+        shell: pwsh
+        run: |
+          dotnet build Installer\MsiBuilder\MsiBuilder.csproj `
+            --configuration Release
+        
+      - name: Test Windows Installer API
+        shell: pwsh
+        run: |
+          dotnet run `
+            --project Installer\MsiBuilder\MsiBuilder.csproj `
+            --configuration Release
+#            
+
 
       
            
