@@ -39,7 +39,7 @@ jobs:
 
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
-
+ 
       - name: Restore NuGet Packages
         run: |
           nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
