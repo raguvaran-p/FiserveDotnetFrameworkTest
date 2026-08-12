@@ -15,6 +15,25 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      - name: Verify Windows Installer Components
+        shell: pwsh
+        run: |
+          Write-Host "===== WINDOWS VERSION ====="
+          Get-ComputerInfo |
+            Select-Object WindowsProductName, WindowsVersion, OsBuildNumber
+
+          Write-Host ""
+          Write-Host "===== WINDOWS INSTALLER DLL ====="
+          Get-Item "$env:WINDIR\System32\msi.dll"
+
+          Write-Host ""
+          Write-Host "===== MAKECAB ====="
+          Get-Item "$env:WINDIR\System32\makecab.exe"
+
+          Write-Host ""
+          Write-Host "===== DOTNET ====="
+          dotnet --info
+
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
