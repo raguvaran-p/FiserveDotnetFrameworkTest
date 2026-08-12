@@ -3,7 +3,7 @@ name: Build ASP.NET Framework Application
 on:
   push:
     branches:
-      - backup-msi-ci-working
+      - backup-msi-without-installers
   workflow_dispatch:
   
 jobs:
