@@ -1703,7 +1703,7 @@ private static void SetSummaryInteger(
             dataType,
             value,
             IntPtr.Zero,
-            null);
+            null!);
 
     CheckResult(
         result,
