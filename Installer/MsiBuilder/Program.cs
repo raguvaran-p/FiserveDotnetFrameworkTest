@@ -141,8 +141,11 @@ internal class Program
         uint uiUpdateCount,
         out IntPtr phSummaryInfo);
 
-    [DllImport("msi.dll", EntryPoint = "MsiSummaryInfoSetPropertyA",
-        CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]
+[DllImport(
+    "msi.dll",
+    EntryPoint = "MsiSummaryInfoSetPropertyA",
+    CharSet = CharSet.Ansi,
+    CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiSummaryInfoSetPropertyA(
         IntPtr hSummaryInfo,
         uint uiProperty,
