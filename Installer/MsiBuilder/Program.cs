@@ -41,7 +41,8 @@ internal class Program
 
     private const uint ERROR_SUCCESS = 0;
     private const uint ERROR_NO_MORE_ITEMS = 259;
-
+    private const uint VT_LPWSTR = 31;
+    
     // MsiViewModify
     private const int MSIMODIFY_INSERT = 1;
 
@@ -147,7 +148,7 @@ internal class Program
         uint uiDataType,
         int iValue,
         IntPtr pftValue,
-        string szValue);
+        IntPtr szValue);
 
     [DllImport("msi.dll")]
     private static extern uint MsiSummaryInfoPersist(
@@ -1670,20 +1671,33 @@ private static void SetSummaryString(
             nameof(value));
     }
 
-    uint result =
-        MsiSummaryInfoSetProperty(
-            summaryInfo,
-            property,
-            VT_LPSTR,
-            0,
-            IntPtr.Zero,
-            value);
+    IntPtr valuePtr = IntPtr.Zero;
 
-    CheckResult(
-        result,
-        $"MsiSummaryInfoSetProperty({property})");
+    try
+    {
+        valuePtr = Marshal.StringToCoTaskMemUni(value);
+
+        uint result =
+            MsiSummaryInfoSetProperty(
+                summaryInfo,
+                property,
+                VT_LPWSTR,
+                0,
+                IntPtr.Zero,
+                valuePtr);
+
+        CheckResult(
+            result,
+            $"MsiSummaryInfoSetProperty({property})");
+    }
+    finally
+    {
+        if (valuePtr != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(valuePtr);
+        }
+    }
 }
-
 private static void SetSummaryInteger(
     IntPtr summaryInfo,
     uint property,
