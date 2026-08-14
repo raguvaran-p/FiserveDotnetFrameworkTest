@@ -1,115 +1,292 @@
-name: Build ASP.NET Framework Application
+name: Build Fiserv MSI
 
 on:
+
   push:
     branches:
-      - backup-msi-without-installers
+      - main
+
   workflow_dispatch:
-  
+
 jobs:
-  build:
-    runs-on: windows-2022
+
+  build-msi:
+
+    name: Build Application + MSI
+
+    runs-on: windows-2025
+
+    permissions:
+      contents: read
 
     steps:
 
-      - name: Checkout Source Code
+      # ==========================================================
+      # 1. Checkout repository
+      # ==========================================================
+
+      - name: Checkout repository
+
         uses: actions/checkout@v4
-#
-      - name: Verify Windows Installer Components
-        shell: pwsh
-        run: |
-          Write-Host "===== WINDOWS VERSION ====="
-          cmd /c ver
 
-          Write-Host ""
-          Write-Host "===== WINDOWS INSTALLER DLL ====="
-          if (Test-Path "$env:WINDIR\System32\msi.dll") {
-              Write-Host "msi.dll FOUND"
-              Get-Item "$env:WINDIR\System32\msi.dll" |
-                Select-Object FullName, Length
-          }
-          else {
-              Write-Error "msi.dll NOT FOUND"
-              exit 1
-          }
 
-          Write-Host ""
-          Write-Host "===== MAKECAB ====="
-          if (Test-Path "$env:WINDIR\System32\makecab.exe") {
-              Write-Host "makecab.exe FOUND"
-              Get-Item "$env:WINDIR\System32\makecab.exe" |
-                Select-Object FullName, Length
-          }
-          else {
-              Write-Error "makecab.exe NOT FOUND"
-              exit 1
-          }
+      # ==========================================================
+      # 2. Setup .NET
+      # ==========================================================
 
-          Write-Host ""
-          Write-Host "===== DOTNET ====="
-          dotnet --version
+      - name: Setup .NET 8
 
-          Write-Host ""
-          Write-Host "===== VERIFICATION COMPLETE ====="
-     #     
+        uses: actions/setup-dotnet@v4
+
+        with:
+          dotnet-version: 8.0.x
+
+
+      # ==========================================================
+      # 3. Setup MSBuild
+      # ==========================================================
+
       - name: Setup MSBuild
+
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
- 
-      - name: Restore NuGet Packages
-        run: |
-          nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
 
-      - name: Build Solution
-        run: |
-          msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+      # ==========================================================
+      # 4. Restore NuGet packages
+      # ==========================================================
 
-      - name: Publish ASP.NET Application
+      - name: Restore NuGet packages
+
+        shell: pwsh
+
         run: |
-          msbuild FiserveDotnetFrameworkTest.csproj `
+
+          nuget restore FiservDotnetFrameworkTest.sln
+
+
+      # ==========================================================
+      # 5. Build the application
+      # ==========================================================
+
+      - name: Build application
+
+        shell: pwsh
+
+        run: |
+
+          msbuild FiservDotnetFrameworkTest.sln `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU"
+
+
+      # ==========================================================
+      # 6. Publish ASP.NET application
+      # ==========================================================
+
+      - name: Publish application
+
+        shell: pwsh
+
+        run: |
+
+          $publishDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "publish"
+
+          if (Test-Path $publishDirectory) {
+              Remove-Item `
+                $publishDirectory `
+                -Recurse `
+                -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $publishDirectory `
+            -Force | Out-Null
+
+          msbuild FiservDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:DeployOnBuild=true `
-            /p:DeployDefaultTarget=WebPublish `
             /p:WebPublishMethod=FileSystem `
             /p:DeleteExistingFiles=true `
-            /p:PublishUrl="${{ github.workspace }}\publish"
+            /p:publishUrl="$publishDirectory"
 
-      - name: Verify Publish Output
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host " Published application"
+          Write-Host "=========================================="
+
+          Get-ChildItem `
+            $publishDirectory `
+            -Recurse
+
+
+      # ==========================================================
+      # 7. Display makecab
+      # ==========================================================
+
+      - name: Locate makecab
+
+        shell: pwsh
+
         run: |
-          Write-Host "===== PUBLISH DIRECTORY ====="
-          Get-ChildItem "${{ github.workspace }}\publish" -Recurse
-#
+
+          $makecab = Join-Path `
+            $env:WINDIR `
+            "System32\makecab.exe"
+
+          if (!(Test-Path $makecab)) {
+              throw "makecab.exe was not found at $makecab"
+          }
+
+          Write-Host "makecab: $makecab"
+
+          & $makecab /?
+
+
+      # ==========================================================
+      # 8. Create MSI output directory
+      # ==========================================================
+
+      - name: Create MSI output directory
+
+        shell: pwsh
+
+        run: |
+
+          $artifactDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "artifacts"
+
+          if (Test-Path $artifactDirectory) {
+              Remove-Item `
+                $artifactDirectory `
+                -Recurse `
+                -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $artifactDirectory `
+            -Force | Out-Null
+
+
+      # ==========================================================
+      # 9. Build MSI Builder
+      # ==========================================================
+
       - name: Build MSI Builder
+
         shell: pwsh
+
         run: |
-          dotnet build Installer\MsiBuilder\MsiBuilder.csproj `
+
+          dotnet build `
+            Installer/MsiBuilder/MsiBuilder.csproj `
             --configuration Release
-        
-      - name: Test Windows Installer API
+
+
+      # ==========================================================
+      # 10. Build MSI
+      # ==========================================================
+
+      - name: Build MSI
+
         shell: pwsh
+
         run: |
+
+          $publishDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "publish"
+
+          $msiDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "artifacts"
+
+          $msiPath = Join-Path `
+            $msiDirectory `
+            "FiservApplication.msi"
+
+          # MSI supports major.minor.build.
+          #
+          # github.run_number gives us an automatically
+          # increasing build number.
+          $version = "1.0.${{ github.run_number }}"
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host " Building MSI"
+          Write-Host "=========================================="
+
+          Write-Host "Source : $publishDirectory"
+          Write-Host "Output : $msiPath"
+          Write-Host "Version: $version"
+
           dotnet run `
-            --project Installer\MsiBuilder\MsiBuilder.csproj `
-            --configuration Release
-#            
+            --project Installer/MsiBuilder/MsiBuilder.csproj `
+            --configuration Release `
+            -- `
+            "$publishDirectory" `
+            "$msiPath" `
+            "$version"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "MSI Builder failed."
+          }
+
+          if (!(Test-Path $msiPath)) {
+              throw "MSI file was not created: $msiPath"
+          }
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host " MSI CREATED"
+          Write-Host "=========================================="
+
+          Get-Item $msiPath
 
 
-      
-           
-     
+      # ==========================================================
+      # 11. MSI file information
+      # ==========================================================
 
-          
-     # - name: Verify MSI
-     #   shell: pwsh
-     #   run: |
-     #     Write-Host "===== MSI OUTPUT ====="
-     #     Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
-     # - name: Upload MSI Artifact
-     #   uses: actions/upload-artifact@v4
-     #   with:
-     #     name: FiserveDotnetFrameworkTest-MSI
-     #     path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
+      - name: Show MSI information
+
+        shell: pwsh
+
+        run: |
+
+          $msiPath = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "artifacts\FiservApplication.msi"
+
+          $file = Get-Item $msiPath
+
+          Write-Host ""
+          Write-Host "MSI path:"
+          Write-Host $file.FullName
+
+          Write-Host ""
+          Write-Host "MSI size:"
+          Write-Host "$($file.Length) bytes"
 
 
+      # ==========================================================
+      # 12. Upload MSI as GitHub Actions artifact
+      # ==========================================================
+
+      - name: Upload MSI artifact
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: FiservApplication-MSI
+
+          path: artifacts/FiservApplication.msi
+
+          if-no-files-found: error
+
+          retention-days: 7
