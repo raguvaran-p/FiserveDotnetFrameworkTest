@@ -1,76 +1,75 @@
-name: Build ASP.NET Framework Application
+name: Build MSI - C# Windows Installer API
 
 on:
   push:
     branches:
-      - main
+      - backup-msi-without-installers
+
   workflow_dispatch:
-  
+
 jobs:
-  build:
-    runs-on: windows-latest
+  build-msi:
+    runs-on: windows-2022
 
     steps:
-
-      - name: Checkout Source Code
+      # 1. Checkout repository
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      # 2. Setup .NET 10
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Restore NuGet Packages
-        run: |
-          nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
-
-      - name: Build Solution
-        run: |
-          msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
-
-      - name: Publish ASP.NET Application
-        run: |
-          msbuild FiserveDotnetFrameworkTest.csproj `
-            /p:Configuration=Release `
-            /p:DeployOnBuild=true `
-            /p:DeployDefaultTarget=WebPublish `
-            /p:WebPublishMethod=FileSystem `
-            /p:DeleteExistingFiles=true `
-            /p:PublishUrl="${{ github.workspace }}\publish"
-
-      - name: Verify Publish Output
-        run: |
-          Write-Host "===== PUBLISH DIRECTORY ====="
-          Get-ChildItem "${{ github.workspace }}\publish" -Recurse
-
-      - name: Install WiX Toolset
+      # 3. Display installed .NET versions
+      - name: Verify .NET installation
         shell: pwsh
         run: |
-          dotnet tool install --global wix
-           
-      - name: Build MSI
-        shell: pwsh
+          dotnet --info
+          dotnet --list-runtimes
+
+      # 4. Restore MSI Builder
+      - name: Restore MSI Builder
         run: |
-          Write-Host "===== BUILDING MSI ====="
+          dotnet restore Installer/MsiBuilder/MsiBuilder.csproj
 
-          wix build `
-            -acceptEula wix7 `
-            -d PublishDir="${{ github.workspace }}\publish" `
-            Installer\Product.wxs `
-            -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+      # 5. Build MSI Builder
+      - name: Build MSI Builder
+        run: |
+          dotnet build Installer/MsiBuilder/MsiBuilder.csproj `
+            --configuration Release `
+            --no-restore
 
+      # 6. Run MSI Builder
+      - name: Generate MSI
+        run: |
+          dotnet run `
+            --project Installer/MsiBuilder/MsiBuilder.csproj `
+            --configuration Release `
+            --no-build
 
-          
+      # 7. Verify generated MSI
       - name: Verify MSI
         shell: pwsh
         run: |
-          Write-Host "===== MSI OUTPUT ====="
-          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
-      - name: Upload MSI Artifact
+          $msi = Join-Path $env:TEMP "MsiBuilderTest.msi"
+
+          if (-not (Test-Path $msi)) {
+            Write-Error "MSI was not generated: $msi"
+            exit 1
+          }
+
+          $file = Get-Item $msi
+
+          Write-Host "MSI generated successfully."
+          Write-Host "Path: $($file.FullName)"
+          Write-Host "Size: $($file.Length) bytes"
+
+      # 8. Upload MSI as GitHub Actions artifact
+      - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FiserveDotnetFrameworkTest-MSI
-          path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
-
-
+          name: Fiserv-MSI
+          path: '${{ runner.temp }}/MsiBuilderTest.msi'
+          if-no-files-found: error
