@@ -1677,13 +1677,13 @@ private static void SetSummaryString(
 
     try
     {
-        valuePtr = Marshal.StringToCoTaskMemUni(value);
+        valuePtr = Marshal.StringToCoTaskMemAnsi(value);
 
         uint result =
             MsiSummaryInfoSetProperty(
                 summaryInfo,
                 property,
-                VT_LPWSTR,
+                VT_LPSTR,
                 0,
                 IntPtr.Zero,
                 valuePtr);
