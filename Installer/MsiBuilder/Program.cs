@@ -41,7 +41,9 @@ internal class Program
 
     private const uint ERROR_SUCCESS = 0;
     private const uint ERROR_NO_MORE_ITEMS = 259;
-    private const uint VT_LPWSTR = 31;
+    private const uint VT_I2 = 2;
+    private const uint VT_I4 = 3;
+    private const uint VT_LPSTR = 30;
     
     // MsiViewModify
     private const int MSIMODIFY_INSERT = 1;
