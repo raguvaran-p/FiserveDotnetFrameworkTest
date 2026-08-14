@@ -61,7 +61,10 @@ jobs:
 
         run: |
 
-          nuget restore FiservDotnetFrameworkTest.sln
+          nuget restore FiservDotnetFrameworkTest.csproj
+          if ($LASTEXITCODE -ne 0) {
+              throw "NuGet restore failed."
+          }
 
 
       # ==========================================================
@@ -74,9 +77,12 @@ jobs:
 
         run: |
 
-          msbuild FiservDotnetFrameworkTest.sln `
+          msbuild FiservDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:Platform="Any CPU"
+            if ($LASTEXITCODE -ne 0) {
+                throw "Application build failed."
+            }
 
 
       # ==========================================================
