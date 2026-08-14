@@ -10,7 +10,7 @@ on:
 jobs:
   build-msi:
     name: Build Application + MSI
-    runs-on: windows-2025
+    runs-on: windows-2022
 
     permissions:
       contents: read
