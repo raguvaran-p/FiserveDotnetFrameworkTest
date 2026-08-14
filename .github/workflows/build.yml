@@ -1,4 +1,4 @@
-name: Build Fiserv MSI
+name: Build Fiserve MSI
 
 on:
 
@@ -7,6 +7,7 @@ on:
       - backup-msi-without-installers
 
   workflow_dispatch:
+
 
 jobs:
 
@@ -31,15 +32,15 @@ jobs:
 
 
       # ==========================================================
-      # 2. Setup .NET
+      # 2. Setup .NET 10
       # ==========================================================
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
 
         uses: actions/setup-dotnet@v4
 
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 10.0.x
 
 
       # ==========================================================
@@ -61,14 +62,17 @@ jobs:
 
         run: |
 
-          nuget restore FiservDotnetFrameworkTest.csproj
+          Write-Host "Restoring NuGet packages..."
+
+          nuget restore FiserveDotnetFrameworkTest.csproj
+
           if ($LASTEXITCODE -ne 0) {
               throw "NuGet restore failed."
           }
 
 
       # ==========================================================
-      # 5. Build the application
+      # 5. Build the .NET Framework application
       # ==========================================================
 
       - name: Build application
@@ -77,12 +81,15 @@ jobs:
 
         run: |
 
-          msbuild FiservDotnetFrameworkTest.csproj `
+          Write-Host "Building FiserveDotnetFrameworkTest..."
+
+          msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
-            /p:Platform="Any CPU"
-            if ($LASTEXITCODE -ne 0) {
-                throw "Application build failed."
-            }
+            /p:Platform="AnyCPU"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Application build failed."
+          }
 
 
       # ==========================================================
@@ -99,29 +106,76 @@ jobs:
             $env:GITHUB_WORKSPACE `
             "publish"
 
+
+          Write-Host "Publish directory:"
+          Write-Host $publishDirectory
+
+
+          # ------------------------------------------------------
+          # Remove old publish directory
+          # ------------------------------------------------------
+
           if (Test-Path $publishDirectory) {
+
               Remove-Item `
                 $publishDirectory `
                 -Recurse `
                 -Force
           }
 
+
+          # ------------------------------------------------------
+          # Create publish directory
+          # ------------------------------------------------------
+
           New-Item `
             -ItemType Directory `
             -Path $publishDirectory `
             -Force | Out-Null
 
-          msbuild FiservDotnetFrameworkTest.csproj `
+
+          # ------------------------------------------------------
+          # Publish application
+          # ------------------------------------------------------
+
+          msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
+            /p:Platform="AnyCPU" `
             /p:DeployOnBuild=true `
             /p:WebPublishMethod=FileSystem `
             /p:DeleteExistingFiles=true `
             /p:publishUrl="$publishDirectory"
 
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Application publish failed."
+          }
+
+
+          # ------------------------------------------------------
+          # Verify published files
+          # ------------------------------------------------------
+
+          $publishedFiles = Get-ChildItem `
+            $publishDirectory `
+            -Recurse `
+            -File
+
+
           Write-Host ""
-          Write-Host "=========================================="
-          Write-Host " Published application"
-          Write-Host "=========================================="
+          Write-Host "Published file count:"
+          Write-Host $publishedFiles.Count
+
+
+          if ($publishedFiles.Count -eq 0) {
+
+              throw `
+                "Publish completed but no files were found in $publishDirectory"
+          }
+
+
+          Write-Host ""
+          Write-Host "Published application files:"
 
           Get-ChildItem `
             $publishDirectory `
@@ -129,7 +183,7 @@ jobs:
 
 
       # ==========================================================
-      # 7. Display makecab
+      # 7. Verify makecab.exe
       # ==========================================================
 
       - name: Locate makecab
@@ -142,11 +196,18 @@ jobs:
             $env:WINDIR `
             "System32\makecab.exe"
 
+
           if (!(Test-Path $makecab)) {
-              throw "makecab.exe was not found at $makecab"
+
+              throw `
+                "makecab.exe was not found at $makecab"
           }
 
-          Write-Host "makecab: $makecab"
+
+          Write-Host ""
+          Write-Host "makecab.exe found:"
+          Write-Host $makecab
+
 
           & $makecab /?
 
@@ -165,17 +226,25 @@ jobs:
             $env:GITHUB_WORKSPACE `
             "artifacts"
 
+
           if (Test-Path $artifactDirectory) {
+
               Remove-Item `
                 $artifactDirectory `
                 -Recurse `
                 -Force
           }
 
+
           New-Item `
             -ItemType Directory `
             -Path $artifactDirectory `
             -Force | Out-Null
+
+
+          Write-Host ""
+          Write-Host "MSI output directory:"
+          Write-Host $artifactDirectory
 
 
       # ==========================================================
@@ -188,9 +257,22 @@ jobs:
 
         run: |
 
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host " Building MSI Builder"
+          Write-Host "=========================================="
+
+
           dotnet build `
             Installer/MsiBuilder/MsiBuilder.csproj `
             --configuration Release
+
+
+          if ($LASTEXITCODE -ne 0) {
+
+              throw `
+                "MSI Builder compilation failed."
+          }
 
 
       # ==========================================================
@@ -207,28 +289,83 @@ jobs:
             $env:GITHUB_WORKSPACE `
             "publish"
 
+
           $msiDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "artifacts"
 
+
           $msiPath = Join-Path `
             $msiDirectory `
-            "FiservApplication.msi"
+            "FiserveApplication.msi"
 
-          # MSI supports major.minor.build.
+
+          # ------------------------------------------------------
+          # MSI version
           #
-          # github.run_number gives us an automatically
-          # increasing build number.
+          # Example:
+          #
+          # GitHub run 25
+          #     ↓
+          # 1.0.25
+          # ------------------------------------------------------
+
           $version = "1.0.${{ github.run_number }}"
+
 
           Write-Host ""
           Write-Host "=========================================="
           Write-Host " Building MSI"
           Write-Host "=========================================="
 
-          Write-Host "Source : $publishDirectory"
-          Write-Host "Output : $msiPath"
-          Write-Host "Version: $version"
+
+          Write-Host ""
+          Write-Host "Source directory:"
+          Write-Host $publishDirectory
+
+
+          Write-Host ""
+          Write-Host "MSI output:"
+          Write-Host $msiPath
+
+
+          Write-Host ""
+          Write-Host "MSI version:"
+          Write-Host $version
+
+
+          # ------------------------------------------------------
+          # Verify publish directory
+          # ------------------------------------------------------
+
+          if (!(Test-Path $publishDirectory)) {
+
+              throw `
+                "Publish directory does not exist: $publishDirectory"
+          }
+
+
+          $publishedFiles = Get-ChildItem `
+            $publishDirectory `
+            -Recurse `
+            -File
+
+
+          if ($publishedFiles.Count -eq 0) {
+
+              throw `
+                "No published application files were found."
+          }
+
+
+          Write-Host ""
+          Write-Host "Files going into MSI:"
+          Write-Host $publishedFiles.Count
+
+
+          # ------------------------------------------------------
+          # Run MSI Builder
+          # ------------------------------------------------------
 
           dotnet run `
             --project Installer/MsiBuilder/MsiBuilder.csproj `
@@ -238,24 +375,46 @@ jobs:
             "$msiPath" `
             "$version"
 
+
           if ($LASTEXITCODE -ne 0) {
-              throw "MSI Builder failed."
+
+              throw `
+                "MSI Builder failed."
           }
 
+
+          # ------------------------------------------------------
+          # Verify MSI
+          # ------------------------------------------------------
+
           if (!(Test-Path $msiPath)) {
-              throw "MSI file was not created: $msiPath"
+
+              throw `
+                "MSI file was not created: $msiPath"
           }
+
+
+          $msiFile = Get-Item $msiPath
+
 
           Write-Host ""
           Write-Host "=========================================="
-          Write-Host " MSI CREATED"
+          Write-Host " MSI CREATED SUCCESSFULLY"
           Write-Host "=========================================="
 
-          Get-Item $msiPath
+
+          Write-Host ""
+          Write-Host "MSI path:"
+          Write-Host $msiFile.FullName
+
+
+          Write-Host ""
+          Write-Host "MSI size:"
+          Write-Host "$($msiFile.Length) bytes"
 
 
       # ==========================================================
-      # 11. MSI file information
+      # 11. Show MSI information
       # ==========================================================
 
       - name: Show MSI information
@@ -266,13 +425,29 @@ jobs:
 
           $msiPath = Join-Path `
             $env:GITHUB_WORKSPACE `
-            "artifacts\FiservApplication.msi"
+            "artifacts\FiserveApplication.msi"
+
+
+          if (!(Test-Path $msiPath)) {
+
+              throw `
+                "MSI file does not exist: $msiPath"
+          }
+
 
           $file = Get-Item $msiPath
+
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host " MSI INFORMATION"
+          Write-Host "=========================================="
+
 
           Write-Host ""
           Write-Host "MSI path:"
           Write-Host $file.FullName
+
 
           Write-Host ""
           Write-Host "MSI size:"
@@ -280,7 +455,7 @@ jobs:
 
 
       # ==========================================================
-      # 12. Upload MSI as GitHub Actions artifact
+      # 12. Upload MSI to GitHub Actions Artifact
       # ==========================================================
 
       - name: Upload MSI artifact
@@ -289,9 +464,9 @@ jobs:
 
         with:
 
-          name: FiservApplication-MSI
+          name: FiserveApplication-MSI
 
-          path: artifacts/FiservApplication.msi
+          path: artifacts/FiserveApplication.msi
 
           if-no-files-found: error
 
