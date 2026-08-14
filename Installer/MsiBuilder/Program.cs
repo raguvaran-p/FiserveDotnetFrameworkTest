@@ -169,8 +169,7 @@ internal class Program
                 $"{operation} failed. Windows Installer error: {result}");
         }
     }
-
 }
 
-}
+
 
