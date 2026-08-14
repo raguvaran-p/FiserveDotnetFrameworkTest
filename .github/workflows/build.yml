@@ -102,7 +102,6 @@ jobs:
           Write-Host ""
           Write-Host "Application build completed successfully."
 
-
       # ==========================================================
       # 6. Publish ASP.NET application
       # ==========================================================
@@ -125,10 +124,11 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Remove old publish directory
+          # Remove existing publish directory
           # ------------------------------------------------------
 
           if (Test-Path $publishDirectory) {
+
             Remove-Item `
               $publishDirectory `
               -Recurse `
@@ -147,47 +147,88 @@ jobs:
 
 
           # ------------------------------------------------------
-          # Publish application
+          # Publish ASP.NET application
           # ------------------------------------------------------
 
+          Write-Host ""
+          Write-Host "Running MSBuild publish..."
+
           msbuild FiserveDotnetFrameworkTest.csproj `
+            /t:Build `
             /p:Configuration=Release `
-            /p:Platform="AnyCPU" `
-            /p:DeployOnBuild=true `
-            /p:WebPublishMethod=FileSystem `
-            /p:DeleteExistingFiles=true `
-            /p:publishUrl="$publishDirectory"
+            /p:Platform="AnyCPU"
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Application publish failed."
+            throw "Application build failed during publish preparation."
+          }
+
+
+          msbuild FiserveDotnetFrameworkTest.csproj `
+            /t:WebPublish `
+            /p:Configuration=Release `
+            /p:Platform="AnyCPU" `
+            /p:WebPublishMethod=FileSystem `
+            /p:publishUrl="$publishDirectory" `
+            /p:DeleteExistingFiles=true
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Application WebPublish failed."
           }
 
 
           # ------------------------------------------------------
-          # Verify published files
+          # Show publish directory
           # ------------------------------------------------------
+
+          Write-Host ""
+          Write-Host "Checking publish directory..."
+
+          if (!(Test-Path $publishDirectory)) {
+            throw "Publish directory does not exist: $publishDirectory"
+          }
+
 
           $publishedFiles = Get-ChildItem `
             $publishDirectory `
             -Recurse `
             -File
 
+
           Write-Host ""
           Write-Host "Published file count:"
           Write-Host $publishedFiles.Count
 
+
           if ($publishedFiles.Count -eq 0) {
+
+            Write-Host ""
+            Write-Host "Publish directory is empty."
+
+            Write-Host ""
+            Write-Host "Directory contents:"
+
+            Get-ChildItem `
+              $env:GITHUB_WORKSPACE `
+              -Recurse `
+              -Directory |
+              Select-Object -First 100 FullName
+
             throw "Publish completed but no files were found."
           }
 
+
+          # ------------------------------------------------------
+          # Display published files
+          # ------------------------------------------------------
+
           Write-Host ""
-          Write-Host "Published application files:"
+          Write-Host "=========================================="
+          Write-Host " Published application files"
+          Write-Host "=========================================="
 
-          Get-ChildItem `
-            $publishDirectory `
-            -Recurse
-
-
+          $publishedFiles |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
       # ==========================================================
       # 7. Verify makecab.exe
       # ==========================================================
