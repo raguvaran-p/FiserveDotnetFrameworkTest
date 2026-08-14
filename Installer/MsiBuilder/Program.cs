@@ -8,6 +8,10 @@ internal class Program
     private const int MSIDBOPEN_CREATE = 3;
     private const uint ERROR_NO_MORE_ITEMS = 259;
 
+    // ============================================================
+    // Windows Installer API
+    // ============================================================
+
     [DllImport("msi.dll", CharSet = CharSet.Unicode)]
     private static extern uint MsiOpenDatabase(
         string szDatabasePath,
@@ -49,11 +53,15 @@ internal class Program
     private static extern uint MsiDatabaseCommit(
         IntPtr hDatabase);
 
+    // ============================================================
+    // Main
+    // ============================================================
+
     static int Main()
     {
         Console.WriteLine("======================================");
         Console.WriteLine(" C# Windows Installer MSI Builder");
-        Console.WriteLine(" Step 2 - MSI Property Table");
+        Console.WriteLine(" Step 1 + Step 2 + Step 3");
         Console.WriteLine("======================================");
 
         string testMsi = Path.Combine(
@@ -72,6 +80,15 @@ internal class Program
 
         try
         {
+            // ====================================================
+            // STEP 1 - Create MSI database
+            // ====================================================
+
+            Console.WriteLine();
+            Console.WriteLine("======================================");
+            Console.WriteLine(" Step 1 - Create MSI Database");
+            Console.WriteLine("======================================");
+
             uint result = MsiOpenDatabase(
                 testMsi,
                 MSIDBOPEN_CREATE,
@@ -84,54 +101,38 @@ internal class Program
             Console.WriteLine(
                 "MSI database opened successfully.");
 
-            // Create the standard MSI Property table.
-            string createPropertyTableSql =
-                "CREATE TABLE `Property` (" +
-                "`Property` CHAR(72) NOT NULL, " +
-                "`Value` CHAR(0) NOT NULL LOCALIZABLE PRIMARY KEY `Property`)";
+            // ====================================================
+            // STEP 2 - Property table
+            // ====================================================
 
             Console.WriteLine();
-            Console.WriteLine(
-                "Creating MSI Property table...");
+            Console.WriteLine("======================================");
+            Console.WriteLine(" Step 2 - MSI Property Table");
+            Console.WriteLine("======================================");
 
-            ExecuteSql(
-                database,
-                createPropertyTableSql);
+            CreatePropertyTable(database);
 
-            Console.WriteLine(
-                "Property table created successfully.");
-
-            // Add MSI package properties.
-            string[] propertySql =
-            {
-                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductName', 'Fiserv Application')",
-
-                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductVersion', '1.0.0')",
-
-                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('Manufacturer', 'Fiserv')",
-
-                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductCode', '{11111111-1111-1111-1111-111111111111}')",
-
-                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('UpgradeCode', '{22222222-2222-2222-2222-222222222222}')"
-            };
-
-            foreach (string sql in propertySql)
-            {
-                Console.WriteLine();
-                Console.WriteLine("Executing:");
-                Console.WriteLine(sql);
-
-                ExecuteSql(
-                    database,
-                    sql);
-            }
-
-            Console.WriteLine();
-            Console.WriteLine(
-                "MSI properties inserted successfully.");
-
-            // Read the properties back before committing.
             VerifyProperties(database);
+
+            // ====================================================
+            // STEP 3 - Directory table
+            // ====================================================
+
+            Console.WriteLine();
+            Console.WriteLine("======================================");
+            Console.WriteLine(" Step 3 - MSI Directory Table");
+            Console.WriteLine("======================================");
+
+            CreateDirectoryTable(database);
+
+            VerifyDirectoryTable(database);
+
+            // ====================================================
+            // Commit MSI database
+            // ====================================================
+
+            Console.WriteLine();
+            Console.WriteLine("Committing MSI database...");
 
             result = MsiDatabaseCommit(database);
 
@@ -139,9 +140,12 @@ internal class Program
                 result,
                 "MsiDatabaseCommit");
 
-            Console.WriteLine();
             Console.WriteLine(
                 "MSI database committed successfully.");
+
+            // ====================================================
+            // Verify file
+            // ====================================================
 
             if (!File.Exists(testMsi))
             {
@@ -165,7 +169,9 @@ internal class Program
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("ERROR:");
+            Console.WriteLine("======================================");
+            Console.WriteLine(" ERROR");
+            Console.WriteLine("======================================");
             Console.WriteLine(ex.Message);
 
             return 1;
@@ -179,39 +185,61 @@ internal class Program
         }
     }
 
-    private static void ExecuteSql(
-        IntPtr database,
-        string sql)
+    // ============================================================
+    // STEP 2 - Create Property table
+    // ============================================================
+
+    private static void CreatePropertyTable(
+        IntPtr database)
     {
-        IntPtr view = IntPtr.Zero;
+        string createPropertyTableSql =
+            "CREATE TABLE `Property` (" +
+            "`Property` CHAR(72) NOT NULL, " +
+            "`Value` CHAR(0) NOT NULL LOCALIZABLE PRIMARY KEY `Property`)";
 
-        try
+        Console.WriteLine();
+        Console.WriteLine(
+            "Creating MSI Property table...");
+
+        ExecuteSql(
+            database,
+            createPropertyTableSql);
+
+        Console.WriteLine(
+            "Property table created successfully.");
+
+        string[] propertySql =
         {
-            uint result = MsiDatabaseOpenView(
+            "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductName', 'Fiserv Application')",
+
+            "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductVersion', '1.0.0')",
+
+            "INSERT INTO `Property` (`Property`, `Value`) VALUES ('Manufacturer', 'Fiserv')",
+
+            "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductCode', '{11111111-1111-1111-1111-111111111111}')",
+
+            "INSERT INTO `Property` (`Property`, `Value`) VALUES ('UpgradeCode', '{22222222-2222-2222-2222-222222222222}')"
+        };
+
+        foreach (string sql in propertySql)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Executing:");
+            Console.WriteLine(sql);
+
+            ExecuteSql(
                 database,
-                sql,
-                out view);
-
-            CheckResult(
-                result,
-                "MsiDatabaseOpenView");
-
-            result = MsiViewExecute(
-                view,
-                IntPtr.Zero);
-
-            CheckResult(
-                result,
-                "MsiViewExecute");
+                sql);
         }
-        finally
-        {
-            if (view != IntPtr.Zero)
-            {
-                MsiViewClose(view);
-            }
-        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "MSI properties inserted successfully.");
     }
+
+    // ============================================================
+    // STEP 2 - Verify Property table
+    // ============================================================
 
     private static void VerifyProperties(
         IntPtr database)
@@ -295,6 +323,190 @@ internal class Program
         }
     }
 
+    // ============================================================
+    // STEP 3 - Create Directory table
+    // ============================================================
+
+    private static void CreateDirectoryTable(
+        IntPtr database)
+    {
+        string createDirectoryTableSql =
+            "CREATE TABLE `Directory` (" +
+            "`Directory` CHAR(72) NOT NULL, " +
+            "`Directory_Parent` CHAR(72), " +
+            "`DefaultDir` CHAR(255) NOT NULL " +
+            "PRIMARY KEY `Directory`)";
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "Creating MSI Directory table...");
+
+        ExecuteSql(
+            database,
+            createDirectoryTableSql);
+
+        Console.WriteLine(
+            "Directory table created successfully.");
+
+        string[] directorySql =
+        {
+            "INSERT INTO `Directory` " +
+            "(`Directory`, `Directory_Parent`, `DefaultDir`) " +
+            "VALUES ('TARGETDIR', NULL, 'SourceDir')",
+
+            "INSERT INTO `Directory` " +
+            "(`Directory`, `Directory_Parent`, `DefaultDir`) " +
+            "VALUES ('INSTALLDIR', 'TARGETDIR', 'Fiserv Application')"
+        };
+
+        foreach (string sql in directorySql)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Executing:");
+            Console.WriteLine(sql);
+
+            ExecuteSql(
+                database,
+                sql);
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            "Directory entries inserted successfully.");
+    }
+
+    // ============================================================
+    // STEP 3 - Verify Directory table
+    // ============================================================
+
+    private static void VerifyDirectoryTable(
+        IntPtr database)
+    {
+        IntPtr view = IntPtr.Zero;
+
+        try
+        {
+            string sql =
+                "SELECT `Directory`, `Directory_Parent`, `DefaultDir` " +
+                "FROM `Directory`";
+
+            Console.WriteLine();
+            Console.WriteLine("======================================");
+            Console.WriteLine(" Verifying MSI Directory table");
+            Console.WriteLine("======================================");
+
+            uint result = MsiDatabaseOpenView(
+                database,
+                sql,
+                out view);
+
+            CheckResult(
+                result,
+                "MsiDatabaseOpenView");
+
+            result = MsiViewExecute(
+                view,
+                IntPtr.Zero);
+
+            CheckResult(
+                result,
+                "MsiViewExecute");
+
+            while (true)
+            {
+                IntPtr record = IntPtr.Zero;
+
+                result = MsiViewFetch(
+                    view,
+                    out record);
+
+                if (result == ERROR_NO_MORE_ITEMS)
+                {
+                    break;
+                }
+
+                CheckResult(
+                    result,
+                    "MsiViewFetch");
+
+                try
+                {
+                    string directory =
+                        GetRecordString(record, 1);
+
+                    string parent =
+                        GetRecordString(record, 2);
+
+                    string defaultDir =
+                        GetRecordString(record, 3);
+
+                    Console.WriteLine(
+                        $"{directory} | Parent: {parent} | DefaultDir: {defaultDir}");
+                }
+                finally
+                {
+                    if (record != IntPtr.Zero)
+                    {
+                        MsiCloseHandle(record);
+                    }
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "Directory verification successful.");
+        }
+        finally
+        {
+            if (view != IntPtr.Zero)
+            {
+                MsiViewClose(view);
+            }
+        }
+    }
+
+    // ============================================================
+    // Execute MSI SQL
+    // ============================================================
+
+    private static void ExecuteSql(
+        IntPtr database,
+        string sql)
+    {
+        IntPtr view = IntPtr.Zero;
+
+        try
+        {
+            uint result = MsiDatabaseOpenView(
+                database,
+                sql,
+                out view);
+
+            CheckResult(
+                result,
+                "MsiDatabaseOpenView");
+
+            result = MsiViewExecute(
+                view,
+                IntPtr.Zero);
+
+            CheckResult(
+                result,
+                "MsiViewExecute");
+        }
+        finally
+        {
+            if (view != IntPtr.Zero)
+            {
+                MsiViewClose(view);
+            }
+        }
+    }
+
+    // ============================================================
+    // Read MSI record field
+    // ============================================================
+
     private static string GetRecordString(
         IntPtr record,
         uint field)
@@ -316,6 +528,10 @@ internal class Program
 
         return value.ToString();
     }
+
+    // ============================================================
+    // Error handling
+    // ============================================================
 
     private static void CheckResult(
         uint result,
