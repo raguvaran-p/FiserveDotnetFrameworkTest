@@ -1241,7 +1241,7 @@ internal class Program
             database,
             "RemoveExistingProducts",
             null,
-            6700);
+            6500);
 
         AddSequence(
             database,
@@ -1535,160 +1535,180 @@ internal class Program
         }
     }
 
-    // ============================================================
-    // SUMMARY INFORMATION
-    // ============================================================
+ // ============================================================
+// SUMMARY INFORMATION
+// ============================================================
 
-    private static void SetSummaryInformation(
-        IntPtr database,
-        string packageCode)
-    {
-        IntPtr summaryInfo =
-            IntPtr.Zero;
+private static void SetSummaryInformation(
+    IntPtr database,
+    string packageCode)
+{
+    IntPtr summaryInfo =
+        IntPtr.Zero;
 
-        try
-        {
-            uint result =
-                MsiGetSummaryInformation(
-                    database,
-                    null!,
-                    10,
-                    out summaryInfo);
-
-            CheckResult(
-                result,
-                "MsiGetSummaryInformation");
-
-            // Codepage must be set before string properties.
-            SetSummaryInteger(
-                summaryInfo,
-                PID_CODEPAGE,
-                VT_I2,
-                1252);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_TITLE,
-                "Installation Database");
-
-            SetSummaryString(
-                summaryInfo,
-                PID_SUBJECT,
-                ProductName);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_AUTHOR,
-                Manufacturer);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_KEYWORDS,
-                "Installer, MSI, Fiserv");
-
-            SetSummaryString(
-                summaryInfo,
-                PID_COMMENTS,
-                "This installer database contains the logic and data required to install " +
-                ProductName);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_TEMPLATE,
-                TemplateSummary);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_REVNUMBER,
-                packageCode.ToUpperInvariant());
-
-            // Minimum Windows Installer version 2.0
-            SetSummaryInteger(
-                summaryInfo,
-                PID_PAGECOUNT,
-                VT_I4,
-                200);
-
-            // Bit 1 = compressed source.
-            //
-            // 2 = long file names + compressed source.
-            SetSummaryInteger(
-                summaryInfo,
-                PID_WORDCOUNT,
-                VT_I4,
-                2);
-
-            SetSummaryString(
-                summaryInfo,
-                PID_APPNAME,
-                "Fiserv MSI Builder");
-
-            // Recommended read-only security level
-            SetSummaryInteger(
-                summaryInfo,
-                PID_SECURITY,
-                VT_I4,
-                2);
-
-            result =
-                MsiSummaryInfoPersist(
-                    summaryInfo);
-
-            CheckResult(
-                result,
-                "MsiSummaryInfoPersist");
-
-            Console.WriteLine(
-                "Summary information created.");
-        }
-        finally
-        {
-            if (summaryInfo != IntPtr.Zero)
-            {
-                MsiCloseHandle(summaryInfo);
-            }
-        }
-    }
-
-    private static void SetSummaryString(
-        IntPtr summaryInfo,
-        uint property,
-        string value)
+    try
     {
         uint result =
-            MsiSummaryInfoSetProperty(
-                summaryInfo,
-                property,
-                VT_LPSTR,
-                0,
-                IntPtr.Zero,
-                value);
+            MsiGetSummaryInformation(
+                database,
+                null!,
+                10,
+                out summaryInfo);
 
         CheckResult(
             result,
-            $"MsiSummaryInfoSetProperty({property})");
-    }
+            "MsiGetSummaryInformation");
 
-    private static void SetSummaryInteger(
-        IntPtr summaryInfo,
-        uint property,
-        uint dataType,
-        int value)
-    {
-        uint result =
-            MsiSummaryInfoSetProperty(
-                summaryInfo,
-                property,
-                dataType,
-                value,
-                IntPtr.Zero,
-                null);
+        // Codepage MUST be set before any string properties.
+        //
+        // Windows Installer summary string properties use
+        // VT_LPSTR / ANSI strings.
+        SetSummaryInteger(
+            summaryInfo,
+            PID_CODEPAGE,
+            VT_I2,
+            1252);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_TITLE,
+            "Installation Database");
+
+        SetSummaryString(
+            summaryInfo,
+            PID_SUBJECT,
+            ProductName);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_AUTHOR,
+            Manufacturer);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_KEYWORDS,
+            "Installer, MSI, Fiserv");
+
+        SetSummaryString(
+            summaryInfo,
+            PID_COMMENTS,
+            "This installer database contains the logic and data required to install " +
+            ProductName);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_TEMPLATE,
+            TemplateSummary);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_REVNUMBER,
+            packageCode.ToUpperInvariant());
+
+        // Minimum Windows Installer version 2.0
+        SetSummaryInteger(
+            summaryInfo,
+            PID_PAGECOUNT,
+            VT_I4,
+            200);
+
+        // Word Count:
+        // 2 = compressed source
+        SetSummaryInteger(
+            summaryInfo,
+            PID_WORDCOUNT,
+            VT_I4,
+            2);
+
+        SetSummaryString(
+            summaryInfo,
+            PID_APPNAME,
+            "Fiserv MSI Builder");
+
+        // Recommended read-only security level
+        SetSummaryInteger(
+            summaryInfo,
+            PID_SECURITY,
+            VT_I4,
+            2);
+
+        result =
+            MsiSummaryInfoPersist(
+                summaryInfo);
 
         CheckResult(
             result,
-            $"MsiSummaryInfoSetProperty({property})");
+            "MsiSummaryInfoPersist");
+
+        Console.WriteLine(
+            "Summary information created.");
+    }
+    finally
+    {
+        if (summaryInfo != IntPtr.Zero)
+        {
+            MsiCloseHandle(summaryInfo);
+        }
+    }
+}
+
+private static void SetSummaryString(
+    IntPtr summaryInfo,
+    uint property,
+    string value)
+{
+    if (summaryInfo == IntPtr.Zero)
+    {
+        throw new InvalidOperationException(
+            "Summary information handle is invalid.");
     }
 
+    if (string.IsNullOrEmpty(value))
+    {
+        throw new ArgumentException(
+            "Summary information value cannot be null or empty.",
+            nameof(value));
+    }
+
+    uint result =
+        MsiSummaryInfoSetPropertyA(
+            summaryInfo,
+            property,
+            VT_LPSTR,
+            0,
+            IntPtr.Zero,
+            value);
+
+    CheckResult(
+        result,
+        $"MsiSummaryInfoSetPropertyA({property})");
+}
+
+private static void SetSummaryInteger(
+    IntPtr summaryInfo,
+    uint property,
+    uint dataType,
+    int value)
+{
+    if (summaryInfo == IntPtr.Zero)
+    {
+        throw new InvalidOperationException(
+            "Summary information handle is invalid.");
+    }
+
+    uint result =
+        MsiSummaryInfoSetPropertyA(
+            summaryInfo,
+            property,
+            dataType,
+            value,
+            IntPtr.Zero,
+            null);
+
+    CheckResult(
+        result,
+        $"MsiSummaryInfoSetPropertyA({property})");
+}
     // ============================================================
     // SQL
     // ============================================================
