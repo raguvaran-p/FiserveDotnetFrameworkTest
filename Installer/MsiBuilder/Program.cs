@@ -1671,7 +1671,7 @@ private static void SetSummaryString(
     }
 
     uint result =
-        MsiSummaryInfoSetPropertyA(
+        MsiSummaryInfoSetProperty(
             summaryInfo,
             property,
             VT_LPSTR,
@@ -1681,7 +1681,7 @@ private static void SetSummaryString(
 
     CheckResult(
         result,
-        $"MsiSummaryInfoSetPropertyA({property})");
+        $"MsiSummaryInfoSetProperty({property})");
 }
 
 private static void SetSummaryInteger(
@@ -1697,7 +1697,7 @@ private static void SetSummaryInteger(
     }
 
     uint result =
-        MsiSummaryInfoSetPropertyA(
+        MsiSummaryInfoSetProperty(
             summaryInfo,
             property,
             dataType,
@@ -1707,7 +1707,7 @@ private static void SetSummaryInteger(
 
     CheckResult(
         result,
-        $"MsiSummaryInfoSetPropertyA({property})");
+        $"MsiSummaryInfoSetProperty({property})");
 }
     // ============================================================
     // SQL
