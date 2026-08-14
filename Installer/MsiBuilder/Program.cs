@@ -1704,53 +1704,6 @@ private static void SetSummaryString(
 
     try
     {
-        // Windows Installer VT_LPSTR requires ANSI string data.
-        valuePtr =
-            Marshal.StringToCoTaskMemAnsi(value);
-
-        uint result =
-            MsiSummaryInfoSetPropertyA(
-                summaryInfo,
-                property,
-                VT_LPSTR,
-                0,
-                IntPtr.Zero,
-                valuePtr);
-
-        CheckResult(
-            result,
-            $"MsiSummaryInfoSetPropertyA({property})");
-    }
-    finally
-    {
-        if (valuePtr != IntPtr.Zero)
-        {
-            Marshal.FreeCoTaskMem(valuePtr);
-        }
-    }
-}private static void SetSummaryString(
-    IntPtr summaryInfo,
-    uint property,
-    string value)
-{
-    if (summaryInfo == IntPtr.Zero)
-    {
-        throw new InvalidOperationException(
-            "Summary information handle is invalid.");
-    }
-
-    if (string.IsNullOrEmpty(value))
-    {
-        throw new ArgumentException(
-            "Summary information value cannot be null or empty.",
-            nameof(value));
-    }
-
-    IntPtr valuePtr = IntPtr.Zero;
-
-    try
-    {
-        // Windows Installer VT_LPSTR requires ANSI string data.
         valuePtr =
             Marshal.StringToCoTaskMemAnsi(value);
 
@@ -1776,8 +1729,7 @@ private static void SetSummaryString(
     }
 }
 
-
-    private static void SetSummaryInteger(
+private static void SetSummaryInteger(
     IntPtr summaryInfo,
     uint property,
     uint dataType,
@@ -1802,7 +1754,6 @@ private static void SetSummaryString(
         result,
         $"MsiSummaryInfoSetPropertyA({property})");
 }
- 
     
     // ============================================================
     // SQL
