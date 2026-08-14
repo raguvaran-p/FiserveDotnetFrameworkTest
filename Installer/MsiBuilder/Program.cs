@@ -41,9 +41,7 @@ internal class Program
 
     private const uint ERROR_SUCCESS = 0;
     private const uint ERROR_NO_MORE_ITEMS = 259;
-    private const uint VT_I2 = 2;
-    private const uint VT_I4 = 3;
-    private const uint VT_LPSTR = 30;
+
     
     // MsiViewModify
     private const int MSIMODIFY_INSERT = 1;
@@ -143,8 +141,9 @@ internal class Program
         uint uiUpdateCount,
         out IntPtr phSummaryInfo);
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
-    private static extern uint MsiSummaryInfoSetProperty(
+    [DllImport("msi.dll", EntryPoint = "MsiSummaryInfoSetPropertyA",
+        CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Winapi)]
+    private static extern uint MsiSummaryInfoSetPropertyA(
         IntPtr hSummaryInfo,
         uint uiProperty,
         uint uiDataType,
@@ -1546,8 +1545,7 @@ private static void SetSummaryInformation(
     IntPtr database,
     string packageCode)
 {
-    IntPtr summaryInfo =
-        IntPtr.Zero;
+    IntPtr summaryInfo = IntPtr.Zero;
 
     try
     {
@@ -1555,22 +1553,35 @@ private static void SetSummaryInformation(
             MsiGetSummaryInformation(
                 database,
                 null!,
-                10,
+                20,
                 out summaryInfo);
 
         CheckResult(
             result,
             "MsiGetSummaryInformation");
 
-        // Codepage MUST be set before any string properties.
-        //
-        // Windows Installer summary string properties use
-        // VT_LPSTR / ANSI strings.
+        if (summaryInfo == IntPtr.Zero)
+        {
+            throw new InvalidOperationException(
+                "MsiGetSummaryInformation returned an invalid handle.");
+        }
+
+        Console.WriteLine(
+            "Summary information handle created.");
+
+        // --------------------------------------------------------
+        // Code page
+        // --------------------------------------------------------
+
         SetSummaryInteger(
             summaryInfo,
             PID_CODEPAGE,
             VT_I2,
             1252);
+
+        // --------------------------------------------------------
+        // String properties
+        // --------------------------------------------------------
 
         SetSummaryString(
             summaryInfo,
@@ -1595,8 +1606,8 @@ private static void SetSummaryInformation(
         SetSummaryString(
             summaryInfo,
             PID_COMMENTS,
-            "This installer database contains the logic and data required to install " +
-            ProductName);
+            "This installer database contains the logic and data required to install "
+            + ProductName);
 
         SetSummaryString(
             summaryInfo,
@@ -1608,32 +1619,44 @@ private static void SetSummaryInformation(
             PID_REVNUMBER,
             packageCode.ToUpperInvariant());
 
-        // Minimum Windows Installer version 2.0
+        // --------------------------------------------------------
+        // Numeric properties
+        // --------------------------------------------------------
+
         SetSummaryInteger(
             summaryInfo,
             PID_PAGECOUNT,
             VT_I4,
             200);
 
-        // Word Count:
-        // 2 = compressed source
         SetSummaryInteger(
             summaryInfo,
             PID_WORDCOUNT,
             VT_I4,
             2);
 
+        // --------------------------------------------------------
+        // Application name
+        // --------------------------------------------------------
+
         SetSummaryString(
             summaryInfo,
             PID_APPNAME,
             "Fiserv MSI Builder");
 
-        // Recommended read-only security level
+        // --------------------------------------------------------
+        // Security
+        // --------------------------------------------------------
+
         SetSummaryInteger(
             summaryInfo,
             PID_SECURITY,
             VT_I4,
             2);
+
+        // --------------------------------------------------------
+        // Persist summary information
+        // --------------------------------------------------------
 
         result =
             MsiSummaryInfoPersist(
@@ -1653,7 +1676,8 @@ private static void SetSummaryInformation(
             MsiCloseHandle(summaryInfo);
         }
     }
-}
+}    
+   
 
 private static void SetSummaryString(
     IntPtr summaryInfo,
@@ -1677,10 +1701,12 @@ private static void SetSummaryString(
 
     try
     {
-        valuePtr = Marshal.StringToCoTaskMemAnsi(value);
+        // Windows Installer VT_LPSTR requires ANSI string data.
+        valuePtr =
+            Marshal.StringToCoTaskMemAnsi(value);
 
         uint result =
-            MsiSummaryInfoSetProperty(
+            MsiSummaryInfoSetPropertyA(
                 summaryInfo,
                 property,
                 VT_LPSTR,
@@ -1690,7 +1716,53 @@ private static void SetSummaryString(
 
         CheckResult(
             result,
-            $"MsiSummaryInfoSetProperty({property})");
+            $"MsiSummaryInfoSetPropertyA({property})");
+    }
+    finally
+    {
+        if (valuePtr != IntPtr.Zero)
+        {
+            Marshal.FreeCoTaskMem(valuePtr);
+        }
+    }
+}private static void SetSummaryString(
+    IntPtr summaryInfo,
+    uint property,
+    string value)
+{
+    if (summaryInfo == IntPtr.Zero)
+    {
+        throw new InvalidOperationException(
+            "Summary information handle is invalid.");
+    }
+
+    if (string.IsNullOrEmpty(value))
+    {
+        throw new ArgumentException(
+            "Summary information value cannot be null or empty.",
+            nameof(value));
+    }
+
+    IntPtr valuePtr = IntPtr.Zero;
+
+    try
+    {
+        // Windows Installer VT_LPSTR requires ANSI string data.
+        valuePtr =
+            Marshal.StringToCoTaskMemAnsi(value);
+
+        uint result =
+            MsiSummaryInfoSetPropertyA(
+                summaryInfo,
+                property,
+                VT_LPSTR,
+                0,
+                IntPtr.Zero,
+                valuePtr);
+
+        CheckResult(
+            result,
+            $"MsiSummaryInfoSetPropertyA({property})");
     }
     finally
     {
@@ -1700,7 +1772,9 @@ private static void SetSummaryString(
         }
     }
 }
-private static void SetSummaryInteger(
+
+
+    private static void SetSummaryInteger(
     IntPtr summaryInfo,
     uint property,
     uint dataType,
@@ -1713,18 +1787,20 @@ private static void SetSummaryInteger(
     }
 
     uint result =
-        MsiSummaryInfoSetProperty(
+        MsiSummaryInfoSetPropertyA(
             summaryInfo,
             property,
             dataType,
             value,
             IntPtr.Zero,
-            null!);
+            IntPtr.Zero);
 
     CheckResult(
         result,
-        $"MsiSummaryInfoSetProperty({property})");
+        $"MsiSummaryInfoSetPropertyA({property})");
 }
+ 
+    
     // ============================================================
     // SQL
     // ============================================================
