@@ -1,10 +1,12 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 internal class Program
 {
     private const int MSIDBOPEN_CREATE = 3;
+    private const uint ERROR_NO_MORE_ITEMS = 259;
 
     [DllImport("msi.dll", CharSet = CharSet.Unicode)]
     private static extern uint MsiOpenDatabase(
@@ -24,6 +26,18 @@ internal class Program
         IntPtr hRecord);
 
     [DllImport("msi.dll")]
+    private static extern uint MsiViewFetch(
+        IntPtr hView,
+        out IntPtr hRecord);
+
+    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    private static extern uint MsiRecordGetString(
+        IntPtr hRecord,
+        uint iField,
+        StringBuilder szValue,
+        ref uint pcchValue);
+
+    [DllImport("msi.dll")]
     private static extern uint MsiViewClose(
         IntPtr hView);
 
@@ -39,7 +53,7 @@ internal class Program
     {
         Console.WriteLine("======================================");
         Console.WriteLine(" C# Windows Installer MSI Builder");
-        Console.WriteLine(" Step 1 - SQL Test");
+        Console.WriteLine(" Step 2 - MSI Property Table");
         Console.WriteLine("======================================");
 
         string testMsi = Path.Combine(
@@ -63,29 +77,69 @@ internal class Program
                 MSIDBOPEN_CREATE,
                 out database);
 
-            CheckResult(result, "MsiOpenDatabase");
+            CheckResult(
+                result,
+                "MsiOpenDatabase");
 
             Console.WriteLine(
                 "MSI database opened successfully.");
 
-            // First SQL test.
-            string sql =
-                "CREATE TABLE `TestTable` (" +
-                "`TestKey` CHAR(72) NOT NULL PRIMARY KEY `TestKey`)";
+            // Create the standard MSI Property table.
+            string createPropertyTableSql =
+                "CREATE TABLE `Property` (" +
+                "`Property` CHAR(72) NOT NULL, " +
+                "`Value` CHAR(0) NOT NULL LOCALIZABLE PRIMARY KEY `Property`)";
 
             Console.WriteLine();
-            Console.WriteLine("Executing SQL:");
-            Console.WriteLine(sql);
+            Console.WriteLine(
+                "Creating MSI Property table...");
 
-            ExecuteSql(database, sql);
+            ExecuteSql(
+                database,
+                createPropertyTableSql);
 
             Console.WriteLine(
-                "SQL executed successfully.");
+                "Property table created successfully.");
+
+            // Add MSI package properties.
+            string[] propertySql =
+            {
+                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductName', 'Fiserv Application')",
+
+                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductVersion', '1.0.0')",
+
+                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('Manufacturer', 'Fiserv')",
+
+                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('ProductCode', '{11111111-1111-1111-1111-111111111111}')",
+
+                "INSERT INTO `Property` (`Property`, `Value`) VALUES ('UpgradeCode', '{22222222-2222-2222-2222-222222222222}')"
+            };
+
+            foreach (string sql in propertySql)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Executing:");
+                Console.WriteLine(sql);
+
+                ExecuteSql(
+                    database,
+                    sql);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "MSI properties inserted successfully.");
+
+            // Read the properties back before committing.
+            VerifyProperties(database);
 
             result = MsiDatabaseCommit(database);
 
-            CheckResult(result, "MsiDatabaseCommit");
+            CheckResult(
+                result,
+                "MsiDatabaseCommit");
 
+            Console.WriteLine();
             Console.WriteLine(
                 "MSI database committed successfully.");
 
@@ -159,6 +213,110 @@ internal class Program
         }
     }
 
+    private static void VerifyProperties(
+        IntPtr database)
+    {
+        IntPtr view = IntPtr.Zero;
+
+        try
+        {
+            string sql =
+                "SELECT `Property`, `Value` FROM `Property`";
+
+            Console.WriteLine();
+            Console.WriteLine("======================================");
+            Console.WriteLine(" Verifying MSI Property table");
+            Console.WriteLine("======================================");
+
+            uint result = MsiDatabaseOpenView(
+                database,
+                sql,
+                out view);
+
+            CheckResult(
+                result,
+                "MsiDatabaseOpenView");
+
+            result = MsiViewExecute(
+                view,
+                IntPtr.Zero);
+
+            CheckResult(
+                result,
+                "MsiViewExecute");
+
+            while (true)
+            {
+                IntPtr record = IntPtr.Zero;
+
+                result = MsiViewFetch(
+                    view,
+                    out record);
+
+                if (result == ERROR_NO_MORE_ITEMS)
+                {
+                    break;
+                }
+
+                CheckResult(
+                    result,
+                    "MsiViewFetch");
+
+                try
+                {
+                    string property =
+                        GetRecordString(record, 1);
+
+                    string value =
+                        GetRecordString(record, 2);
+
+                    Console.WriteLine(
+                        $"{property} = {value}");
+                }
+                finally
+                {
+                    if (record != IntPtr.Zero)
+                    {
+                        MsiCloseHandle(record);
+                    }
+                }
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "Property verification successful.");
+        }
+        finally
+        {
+            if (view != IntPtr.Zero)
+            {
+                MsiViewClose(view);
+            }
+        }
+    }
+
+    private static string GetRecordString(
+        IntPtr record,
+        uint field)
+    {
+        uint capacity = 256;
+
+        StringBuilder value =
+            new StringBuilder((int)capacity);
+
+        uint result = MsiRecordGetString(
+            record,
+            field,
+            value,
+            ref capacity);
+
+        CheckResult(
+            result,
+            "MsiRecordGetString");
+
+        return value.ToString();
+    }
+
     private static void CheckResult(
         uint result,
         string operation)
@@ -170,6 +328,3 @@ internal class Program
         }
     }
 }
-
-
-
