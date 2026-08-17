@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2022
 
     permissions:
-      contents: read
+      contents: write
 
     steps:
 
@@ -458,3 +458,17 @@ jobs:
           path: artifacts/FiserveApplication.msi
           if-no-files-found: error
           retention-days: 7
+
+      # ==========================================================
+      # 13. Create GitHub Release and attach MSI
+      # ==========================================================
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Fiserve MSI v1.0.${{ github.run_number }}
+          files: artifacts/FiserveApplication.msi
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
