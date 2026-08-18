@@ -23,23 +23,41 @@ jobs:
 
     steps:
 
+      # --------------------------------------------------
+      # 1. Checkout source code
+      # --------------------------------------------------
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      # --------------------------------------------------
+      # 2. Setup MSBuild
+      # --------------------------------------------------
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      # --------------------------------------------------
+      # 3. Setup NuGet
+      # --------------------------------------------------
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
+      # --------------------------------------------------
+      # 4. Restore NuGet packages
+      # --------------------------------------------------
       - name: Restore NuGet Packages
         run: |
           nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
 
+      # --------------------------------------------------
+      # 5. Build solution
+      # --------------------------------------------------
       - name: Build Solution
         run: |
           msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
 
+      # --------------------------------------------------
+      # 6. Publish ASP.NET application
+      # --------------------------------------------------
       - name: Publish ASP.NET Application
         run: |
           msbuild FiserveDotnetFrameworkTest.csproj `
@@ -50,39 +68,119 @@ jobs:
             /p:DeleteExistingFiles=true `
             /p:PublishUrl="${{ github.workspace }}\publish"
 
+      # --------------------------------------------------
+      # 7. Verify publish output
+      # --------------------------------------------------
       - name: Verify Publish Output
+        shell: pwsh
         run: |
           Write-Host "===== PUBLISH DIRECTORY ====="
-          Get-ChildItem "${{ github.workspace }}\publish" -Recurse
 
+          $publish = "${{ github.workspace }}\publish"
+
+          if (-not (Test-Path $publish)) {
+              Write-Error "Publish directory not found: $publish"
+              exit 1
+          }
+
+          Get-ChildItem $publish -Recurse -File |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize
+
+          $files = Get-ChildItem $publish -Recurse -File
+
+          $totalBytes = ($files | Measure-Object -Property Length -Sum).Sum
+
+          Write-Host ""
+          Write-Host "Total publish files : $($files.Count)"
+          Write-Host "Total publish size  : $totalBytes bytes"
+          Write-Host "Total publish size  : $([math]::Round($totalBytes / 1MB, 2)) MB"
+
+      # --------------------------------------------------
+      # 8. Install WiX Toolset
+      # --------------------------------------------------
       - name: Install WiX Toolset
         shell: pwsh
         run: |
           dotnet tool install --global wix
 
+      # --------------------------------------------------
+      # 9. Build MSI
+      # --------------------------------------------------
       - name: Build MSI
         shell: pwsh
         run: |
           Write-Host "===== BUILDING MSI ====="
 
+          $publishDir = "${{ github.workspace }}\publish"
+          $msiPath = "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
+          if (-not (Test-Path $publishDir)) {
+              Write-Error "Publish directory not found: $publishDir"
+              exit 1
+          }
+
           wix build `
             -acceptEula wix7 `
-            -d PublishDir="${{ github.workspace }}\publish" `
+            -d PublishDir="$publishDir" `
             Installer\Product.wxs `
-            -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+            -o "$msiPath"
 
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "WiX MSI build failed."
+              exit $LASTEXITCODE
+          }
+
+      # --------------------------------------------------
+      # 10. Verify MSI
+      # --------------------------------------------------
       - name: Verify MSI
         shell: pwsh
         run: |
           Write-Host "===== MSI OUTPUT ====="
-          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
 
+          $msiPath = "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+
+          if (-not (Test-Path $msiPath)) {
+              Write-Error "MSI not found: $msiPath"
+              exit 1
+          }
+
+          $msi = Get-Item $msiPath
+
+          Write-Host "MSI Path : $($msi.FullName)"
+          Write-Host "MSI Size : $($msi.Length) bytes"
+          Write-Host "MSI Size : $([math]::Round($msi.Length / 1MB, 2)) MB"
+
+      # --------------------------------------------------
+      # 11. Find all MSI files for debugging
+      # --------------------------------------------------
+      - name: Find All MSI Files
+        shell: pwsh
+        run: |
+          Write-Host "===== ALL MSI FILES ====="
+
+          Get-ChildItem -Path "${{ github.workspace }}" -Filter *.msi -Recurse -File |
+            ForEach-Object {
+              Write-Host "File : $($_.FullName)"
+              Write-Host "Size : $($_.Length) bytes"
+              Write-Host "MB   : $([math]::Round($_.Length / 1MB, 2)) MB"
+              Write-Host "-----"
+            }
+
+      # --------------------------------------------------
+      # 12. Upload MSI as GitHub Actions artifact
+      # --------------------------------------------------
       - name: Upload MSI Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FiserveDotnetFrameworkTest-MSI
           path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
+          if-no-files-found: error
 
+      # --------------------------------------------------
+      # 13. Create GitHub Release
+      # --------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
