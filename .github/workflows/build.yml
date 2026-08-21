@@ -165,6 +165,8 @@ jobs:
 
       - name: Upload ZIP to Azure Storage
         shell: pwsh
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
         run: |
           az storage blob upload `
             --account-name "fiservstacc1" `
