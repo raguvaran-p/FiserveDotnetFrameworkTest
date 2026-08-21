@@ -161,4 +161,18 @@ jobs:
           name: FiserveApplication
           path: FiserveApplication.zip
           if-no-files-found: error
-          
+
+      # ==========================================================
+      # 9. Upload ZIP to Azure Blob Storage
+      # ==========================================================
+
+      - name: Upload ZIP to Azure Storage
+        shell: pwsh
+        run: |
+          az storage blob upload `
+            --account-name "fiservstacc1" `
+            --container-name "harnesscontainer" `
+            --name "FiserveApplication.zip" `
+            --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
+            --auth-mode login `
+            --overwrite true
