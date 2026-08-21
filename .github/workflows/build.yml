@@ -1,4 +1,4 @@
-name: Build and Package Fiserve Application
+name: Build and Publish Fiserve Application
 
 on:
   push:
@@ -9,13 +9,13 @@ on:
 
 jobs:
   build-publish:
-    name: Build, Publish and Upload ZIP
+    name: Build and Publish Application
     runs-on: windows-2022
 
     steps:
 
       # ==========================================================
-      # 1. Checkout
+      # 1. Checkout repository
       # ==========================================================
 
       - name: Checkout repository
@@ -47,7 +47,10 @@ jobs:
       - name: Restore NuGet packages
         shell: pwsh
         run: |
-          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
+
+          $packagesDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "packages"
 
           New-Item `
             -ItemType Directory `
@@ -63,12 +66,13 @@ jobs:
 
 
       # ==========================================================
-      # 5. Build
+      # 5. Build application
       # ==========================================================
 
       - name: Build application
         shell: pwsh
         run: |
+
           msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:Platform="AnyCPU"
@@ -79,12 +83,13 @@ jobs:
 
 
       # ==========================================================
-      # 6. Publish
+      # 6. Publish application
       # ==========================================================
 
       - name: Publish application
         shell: pwsh
         run: |
+
           $publishDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "publish"
@@ -112,41 +117,3 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Application publish failed."
           }
-
-
-      # ==========================================================
-      # 7. Create ZIP from published output
-      # ==========================================================
-
-      - name: Create ZIP
-        shell: pwsh
-        run: |
-          $publishDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "publish"
-
-          $zipPath = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "FiserveApplication.zip"
-
-          Compress-Archive `
-            -Path "$publishDirectory\*" `
-            -DestinationPath $zipPath `
-            -Force
-
-          if (!(Test-Path $zipPath)) {
-            throw "ZIP file was not created."
-          }
-
-
-      # ==========================================================
-      # 8. Upload ZIP artifact
-      # ==========================================================
-
-      - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: FiserveApplication
-          path: FiserveApplication.zip
-          if-no-files-found: error
-          retention-days: 7
