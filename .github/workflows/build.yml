@@ -166,12 +166,13 @@ jobs:
       - name: Upload ZIP to Azure Storage
         shell: pwsh
         env:
-          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
         run: |
           az storage blob upload `
             --account-name "fiservstacc1" `
+            --account-key "$env:AZURE_STORAGE_ACCOUNT_KEY" `
             --container-name "harnesscontainer" `
             --name "FiserveApplication.zip" `
             --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
-            --auth-mode login `
+            --auth-mode key `
             --overwrite true
