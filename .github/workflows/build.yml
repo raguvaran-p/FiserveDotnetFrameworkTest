@@ -6,7 +6,11 @@ on:
       - clean-build-publish
 
   workflow_dispatch:
-
+  
+permissions:
+  id-token: write
+  contents: read
+  
 jobs:
   build-publish:
     name: Build, Publish and Upload ZIP
@@ -20,8 +24,16 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-
-
+      # ==========================================================
+      # Azure login
+      # ==========================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }} 
+    
       # ==========================================================
       # 2. Setup .NET
       # ==========================================================
