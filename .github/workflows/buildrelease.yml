@@ -1,0 +1,96 @@
+name: Build ASP.NET Framework Application
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+
+      # --------------------------------------------------
+      # 1. Checkout source code
+      # --------------------------------------------------
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # 2. Setup MSBuild
+      # --------------------------------------------------
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # --------------------------------------------------
+      # 3. Setup NuGet
+      # --------------------------------------------------
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      # --------------------------------------------------
+      # 4. Restore NuGet packages
+      # --------------------------------------------------
+      - name: Restore NuGet Packages
+        run: |
+          nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
+
+      # --------------------------------------------------
+      # 5. Build solution
+      # --------------------------------------------------
+      - name: Build Solution
+        run: |
+          msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+
+      # --------------------------------------------------
+      # 6. Publish ASP.NET application
+      # --------------------------------------------------
+      - name: Publish ASP.NET Application
+        run: |
+          msbuild FiserveDotnetFrameworkTest.csproj `
+            /p:Configuration=Release `
+            /p:DeployOnBuild=true `
+            /p:DeployDefaultTarget=WebPublish `
+            /p:WebPublishMethod=FileSystem `
+            /p:DeleteExistingFiles=true `
+            /p:PublishUrl="${{ github.workspace }}\publish"
+
+      # --------------------------------------------------
+      # 7. Verify publish output
+      # --------------------------------------------------
+      - name: Verify Publish Output
+        shell: pwsh
+        run: |
+          Write-Host "===== PUBLISH DIRECTORY ====="
+
+          $publish = "${{ github.workspace }}\publish"
+
+          if (-not (Test-Path $publish)) {
+              Write-Error "Publish directory not found: $publish"
+              exit 1
+          }
+
+      # --------------------------------------------------
+      # 13. Create GitHub Release
+      # --------------------------------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: MSI Release ${{ github.event.inputs.version || github.ref_name }}
+          files: ${{ github.workspace }}\FiserveDotnetFrameworkTest.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
