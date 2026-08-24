@@ -83,6 +83,27 @@ jobs:
               exit 1
           }
 
+       # ==========================================================
+      # 8. Create ZIP from published output
+      # ==========================================================
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          $publishDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "publish"
+          $zipPath = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "FiserveApplication.zip"
+          Compress-Archive `
+            -Path "$publishDirectory\*" `
+            -DestinationPath $zipPath `
+            -Force
+          if (!(Test-Path $zipPath)) {
+            throw "ZIP file was not created."
+          }
+
       # --------------------------------------------------
       # 13. Create GitHub Release
       # --------------------------------------------------
@@ -91,6 +112,6 @@ jobs:
         with:
           tag_name: ${{ github.event.inputs.version || github.ref_name }}
           name: MSI Release ${{ github.event.inputs.version || github.ref_name }}
-          files: ${{ github.workspace }}\FiserveDotnetFrameworkTest.zip
+          files: ${{ github.workspace }}\FiserveApplication.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
