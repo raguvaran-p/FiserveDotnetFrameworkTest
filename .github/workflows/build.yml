@@ -176,3 +176,26 @@ jobs:
             --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
             --auth-mode key `
             --overwrite true
+
+      # ==========================================================
+      # 10. Trigger Harness CD
+      # ==========================================================
+
+      - name: Trigger Harness CD
+        if: success()
+        shell: pwsh
+        env:
+          HARNESS_WEBHOOK_URL: ${{ secrets.HARNESS_WEBHOOK_URL }}
+        run: |
+          $body = @{
+            sample_key = "sample_value"
+          } | ConvertTo-Json -Compress
+
+          Invoke-RestMethod `
+            -Method POST `
+            -Uri $env:HARNESS_WEBHOOK_URL `
+            -ContentType "application/json" `
+            -Body $body
+
+          Write-Host "Harness CD triggered successfully."
+        
