@@ -197,7 +197,8 @@ jobs:
             -ContentType "application/json" `
             -Body $body
 
-          echo "Harness CD triggered successfully."
           echo "Harness Response:"
+          echo "Harness CD triggered successfully."
+          
           
         
