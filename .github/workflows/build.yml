@@ -198,4 +198,6 @@ jobs:
             -Body $body
 
           echo "Harness CD triggered successfully."
+          echo "Harness Response:"
+          
         
