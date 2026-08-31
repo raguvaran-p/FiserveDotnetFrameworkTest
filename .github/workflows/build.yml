@@ -197,5 +197,5 @@ jobs:
             -ContentType "application/json" `
             -Body $body
 
-          Write-Host "Harness CD triggered successfully."
+          echo "Harness CD triggered successfully."
         
