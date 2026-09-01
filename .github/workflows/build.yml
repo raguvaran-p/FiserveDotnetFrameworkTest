@@ -3,7 +3,7 @@ name: Build and Package Fiserve Application
 on:
   push:
     branches:
-      - clean-build-publish
+      - dotnet-framework-4.8-zip-azure-harness
 
   workflow_dispatch:
   
