@@ -1,5 +1,5 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+FROM mcr.microsoft.com/dotnet/framework/sdk:4.8 AS build
+WORKDIR C:/src
  
 # Copy csproj and restore dependencies to cache this layer
 COPY *.slnx ./
