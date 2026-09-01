@@ -7,7 +7,7 @@ COPY *.slnx ./
 COPY *.csproj ./
 
 
-RUN nuget restore
+RUN msbuild FiserveDotnetFrameworkTest.slnx -t:Restore
 
 RUN msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
 
