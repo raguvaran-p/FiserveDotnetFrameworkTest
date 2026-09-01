@@ -3,9 +3,7 @@ FROM mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022
  
 WORKDIR C:/src
 
-COPY *.slnx ./
-COPY *.csproj ./
-
+COPY *.* ./
 
 RUN msbuild FiserveDotnetFrameworkTest.slnx -t:Restore
 
