@@ -1,4 +1,4 @@
-name: Build Fiserve MSI
+name: Build and Package Fiserve Application
 
 on:
   push:
@@ -6,27 +6,33 @@ on:
       - dotnet-framework-4.8-nonwix-msi-ci
 
   workflow_dispatch:
-
+  
+permissions:
+  contents: read
+  
 jobs:
-  build-msi:
-    name: Build Application + MSI
+  build-publish:
+    name: Build, Publish and Upload ZIP
     runs-on: windows-2022
-
-    permissions:
-      contents: read
 
     steps:
 
       # ==========================================================
-      # 1. Checkout repository
+      # 1. Checkout
       # ==========================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
-
-
       # ==========================================================
-      # 2. Setup .NET 10
+      # Azure login
+      # ==========================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+      # ==========================================================
+      # 2. Setup .NET
       # ==========================================================
 
       - name: Setup .NET 10
@@ -50,14 +56,7 @@ jobs:
       - name: Restore NuGet packages
         shell: pwsh
         run: |
-
-          Write-Host "=========================================="
-          Write-Host " Restoring NuGet packages"
-          Write-Host "=========================================="
-
-          $packagesDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "packages"
+          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
 
           New-Item `
             -ItemType Directory `
@@ -71,26 +70,14 @@ jobs:
             throw "NuGet restore failed."
           }
 
-          Write-Host ""
-          Write-Host "NuGet restore completed successfully."
-
-          Write-Host ""
-          Write-Host "Packages directory:"
-          Write-Host $packagesDirectory
-
 
       # ==========================================================
-      # 5. Build .NET Framework application
+      # 5. Build
       # ==========================================================
 
       - name: Build application
         shell: pwsh
         run: |
-
-          Write-Host "=========================================="
-          Write-Host " Building application"
-          Write-Host "=========================================="
-
           msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:Platform="AnyCPU"
@@ -99,69 +86,29 @@ jobs:
             throw "Application build failed."
           }
 
-          Write-Host ""
-          Write-Host "Application build completed successfully."
 
       # ==========================================================
-      # 6. Publish ASP.NET application
+      # 6. Publish
       # ==========================================================
 
       - name: Publish application
         shell: pwsh
         run: |
-
-          Write-Host "=========================================="
-          Write-Host " Publishing application"
-          Write-Host "=========================================="
-
           $publishDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "publish"
 
-          Write-Host ""
-          Write-Host "Publish directory:"
-          Write-Host $publishDirectory
-
-
-          # ------------------------------------------------------
-          # Remove existing publish directory
-          # ------------------------------------------------------
-
           if (Test-Path $publishDirectory) {
-
             Remove-Item `
               $publishDirectory `
               -Recurse `
               -Force
           }
 
-
-          # ------------------------------------------------------
-          # Create publish directory
-          # ------------------------------------------------------
-
           New-Item `
             -ItemType Directory `
             -Path $publishDirectory `
             -Force | Out-Null
-
-
-          # ------------------------------------------------------
-          # Publish ASP.NET application
-          # ------------------------------------------------------
-
-          Write-Host ""
-          Write-Host "Running MSBuild publish..."
-
-          msbuild FiserveDotnetFrameworkTest.csproj `
-            /t:Build `
-            /p:Configuration=Release `
-            /p:Platform="AnyCPU"
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "Application build failed during publish preparation."
-          }
-
 
           msbuild FiserveDotnetFrameworkTest.csproj `
             /t:WebPublish `
@@ -172,289 +119,86 @@ jobs:
             /p:DeleteExistingFiles=true
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Application WebPublish failed."
+            throw "Application publish failed."
           }
 
 
-          # ------------------------------------------------------
-          # Show publish directory
-          # ------------------------------------------------------
-
-          Write-Host ""
-          Write-Host "Checking publish directory..."
-
-          if (!(Test-Path $publishDirectory)) {
-            throw "Publish directory does not exist: $publishDirectory"
-          }
-
-
-          $publishedFiles = Get-ChildItem `
-            $publishDirectory `
-            -Recurse `
-            -File
-
-
-          Write-Host ""
-          Write-Host "Published file count:"
-          Write-Host $publishedFiles.Count
-
-
-          if ($publishedFiles.Count -eq 0) {
-
-            Write-Host ""
-            Write-Host "Publish directory is empty."
-
-            Write-Host ""
-            Write-Host "Directory contents:"
-
-            Get-ChildItem `
-              $env:GITHUB_WORKSPACE `
-              -Recurse `
-              -Directory |
-              Select-Object -First 100 FullName
-
-            throw "Publish completed but no files were found."
-          }
-
-
-          # ------------------------------------------------------
-          # Display published files
-          # ------------------------------------------------------
-
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host " Published application files"
-          Write-Host "=========================================="
-
-          $publishedFiles |
-            Select-Object FullName, Length |
-            Format-Table -AutoSize
       # ==========================================================
-      # 7. Verify makecab.exe
+      # 7. Create ZIP from published output
       # ==========================================================
 
-      - name: Locate makecab
+      - name: Create ZIP
         shell: pwsh
         run: |
-
-          Write-Host "=========================================="
-          Write-Host " Checking makecab.exe"
-          Write-Host "=========================================="
-
-          $makecab = Join-Path `
-            $env:WINDIR `
-            "System32\makecab.exe"
-
-          if (!(Test-Path $makecab)) {
-            throw "makecab.exe was not found at $makecab"
-          }
-
-          Write-Host ""
-          Write-Host "makecab.exe found:"
-          Write-Host $makecab
-
-
-      # ==========================================================
-      # 8. Create MSI output directory
-      # ==========================================================
-
-      - name: Create MSI output directory
-        shell: pwsh
-        run: |
-
-          $artifactDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "artifacts"
-
-          if (Test-Path $artifactDirectory) {
-            Remove-Item `
-              $artifactDirectory `
-              -Recurse `
-              -Force
-          }
-
-          New-Item `
-            -ItemType Directory `
-            -Path $artifactDirectory `
-            -Force | Out-Null
-
-          Write-Host ""
-          Write-Host "MSI output directory:"
-          Write-Host $artifactDirectory
-
-
-      # ==========================================================
-      # 9. Build MSI Builder
-      # ==========================================================
-
-      - name: Build MSI Builder
-        shell: pwsh
-        run: |
-
-          Write-Host "=========================================="
-          Write-Host " Building MSI Builder"
-          Write-Host "=========================================="
-
-          dotnet build `
-            Installer/MsiBuilder/MsiBuilder.csproj `
-            --configuration Release
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "MSI Builder compilation failed."
-          }
-
-          Write-Host ""
-          Write-Host "MSI Builder compiled successfully."
-
-
-      # ==========================================================
-      # 10. Build MSI
-      # ==========================================================
-
-      - name: Build MSI
-        shell: pwsh
-        run: |
-
-          Write-Host "=========================================="
-          Write-Host " Building MSI"
-          Write-Host "=========================================="
-
           $publishDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "publish"
 
-          $msiDirectory = Join-Path `
+          $zipPath = Join-Path `
             $env:GITHUB_WORKSPACE `
-            "artifacts"
+            "FiserveApplication.zip"
 
-          $msiPath = Join-Path `
-            $msiDirectory `
-            "FiserveApplication.msi"
+          Compress-Archive `
+            -Path "$publishDirectory\*" `
+            -DestinationPath $zipPath `
+            -Force
 
-
-          # ------------------------------------------------------
-          # MSI version
-          # ------------------------------------------------------
-
-          $version = "1.0.${{ github.run_number }}"
-
-
-          Write-Host ""
-          Write-Host "Source directory:"
-          Write-Host $publishDirectory
-
-          Write-Host ""
-          Write-Host "MSI output:"
-          Write-Host $msiPath
-
-          Write-Host ""
-          Write-Host "MSI version:"
-          Write-Host $version
-
-
-          # ------------------------------------------------------
-          # Verify publish directory
-          # ------------------------------------------------------
-
-          if (!(Test-Path $publishDirectory)) {
-            throw "Publish directory does not exist: $publishDirectory"
+          if (!(Test-Path $zipPath)) {
+            throw "ZIP file was not created."
           }
-
-          $publishedFiles = Get-ChildItem `
-            $publishDirectory `
-            -Recurse `
-            -File
-
-          if ($publishedFiles.Count -eq 0) {
-            throw "No published application files were found."
-          }
-
-          Write-Host ""
-          Write-Host "Files going into MSI:"
-          Write-Host $publishedFiles.Count
-
-
-          # ------------------------------------------------------
-          # Run MSI Builder
-          # ------------------------------------------------------
-
-          dotnet run `
-            --project Installer/MsiBuilder/MsiBuilder.csproj `
-            --configuration Release `
-            -- `
-            "$publishDirectory" `
-            "$msiPath" `
-            "$version"
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "MSI Builder failed."
-          }
-
-
-          # ------------------------------------------------------
-          # Verify MSI
-          # ------------------------------------------------------
-
-          if (!(Test-Path $msiPath)) {
-            throw "MSI file was not created: $msiPath"
-          }
-
-          $msiFile = Get-Item $msiPath
-
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host " MSI CREATED SUCCESSFULLY"
-          Write-Host "=========================================="
-
-          Write-Host ""
-          Write-Host "MSI path:"
-          Write-Host $msiFile.FullName
-
-          Write-Host ""
-          Write-Host "MSI size:"
-          Write-Host "$($msiFile.Length) bytes"
 
 
       # ==========================================================
-      # 11. Show MSI information
+      # 8. Upload ZIP artifact
       # ==========================================================
 
-      - name: Show MSI information
-        shell: pwsh
-        run: |
-
-          $msiPath = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "artifacts\FiserveApplication.msi"
-
-          if (!(Test-Path $msiPath)) {
-            throw "MSI file does not exist: $msiPath"
-          }
-
-          $file = Get-Item $msiPath
-
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host " MSI INFORMATION"
-          Write-Host "=========================================="
-
-          Write-Host ""
-          Write-Host "MSI path:"
-          Write-Host $file.FullName
-
-          Write-Host ""
-          Write-Host "MSI size:"
-          Write-Host "$($file.Length) bytes"
-
-
-      # ==========================================================
-      # 12. Upload MSI to GitHub Actions Artifact
-      # ==========================================================
-
-      - name: Upload MSI artifact
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FiserveApplication-MSI
-          path: artifacts/FiserveApplication.msi
+          name: FiserveApplication
+          path: FiserveApplication.zip
           if-no-files-found: error
-          retention-days: 7
+
+      # ==========================================================
+      # 9. Upload ZIP to Azure Blob Storage
+      # ==========================================================
+
+      - name: Upload ZIP to Azure Storage
+        shell: pwsh
+        env:
+          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+        run: |
+          az storage blob upload `
+            --account-name "fiservstacc1" `
+            --account-key "$env:AZURE_STORAGE_ACCOUNT_KEY" `
+            --container-name "harnesscontainer" `
+            --name "FiserveApplication.zip" `
+            --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
+            --auth-mode key `
+            --overwrite true
+
+      # ==========================================================
+      # 10. Trigger Harness CD
+      # ==========================================================
+
+      - name: Trigger Harness CD
+        if: success()
+        shell: pwsh
+        env:
+          HARNESS_WEBHOOK_URL: ${{ secrets.HARNESS_WEBHOOK_URL }}
+        run: |
+          $body = @{
+            sample_key = "sample_value"
+          } | ConvertTo-Json -Compress
+
+          Invoke-RestMethod `
+            -Method POST `
+            -Uri $env:HARNESS_WEBHOOK_URL `
+            -ContentType "application/json" `
+            -Body $body
+
+          echo "Harness Response:"
+          echo "Harness CD triggered successfully."
+          
+          
+        
