@@ -3,12 +3,8 @@ name: Build and Package Fiserve Application
 on:
   push:
     branches:
-      - dotnet-framework-4.8-zip-azure-harness
-
+      - main
   workflow_dispatch:
-  
-permissions:
-  contents: read
   
 jobs:
   build-publish:
@@ -155,50 +151,5 @@ jobs:
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FiserveApplication
-          path: FiserveApplication.zip
-          if-no-files-found: error
-
-      # ==========================================================
-      # 9. Upload ZIP to Azure Blob Storage
-      # ==========================================================
-
-      - name: Upload ZIP to Azure Storage
-        shell: pwsh
-        env:
-          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
-        run: |
-          az storage blob upload `
-            --account-name "fiservstacc1" `
-            --account-key "$env:AZURE_STORAGE_ACCOUNT_KEY" `
-            --container-name "harnesscontainer" `
-            --name "FiserveApplication.zip" `
-            --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
-            --auth-mode key `
-            --overwrite true
-
-      # ==========================================================
-      # 10. Trigger Harness CD
-      # ==========================================================
-
-      - name: Trigger Harness CD
-        if: success()
-        shell: pwsh
-        env:
-          HARNESS_WEBHOOK_URL: ${{ secrets.HARNESS_WEBHOOK_URL }}
-        run: |
-          $body = @{
-            sample_key = "sample_value"
-          } | ConvertTo-Json -Compress
-
-          Invoke-RestMethod `
-            -Method POST `
-            -Uri $env:HARNESS_WEBHOOK_URL `
-            -ContentType "application/json" `
-            -Body $body
-
-          echo "Harness Response:"
-          echo "Harness CD triggered successfully."
-          
-          
-        
+          name: FiserveDotnetFrameworkTest-MSI
+          path: ${{ github.workspace }}\FiserveDotnetFrameworkTest.msi
