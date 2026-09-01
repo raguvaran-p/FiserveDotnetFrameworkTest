@@ -165,7 +165,7 @@ jobs:
         shell: pwsh
         run: |
           $IMAGE_NAME = "my-dotnet-framework-app"
-          $IMAGE_TAG = "TestImage"
+          $IMAGE_TAG = "TestImageframework"
 
           Write-Host "=========================================="
           Write-Host " Building Docker image"
