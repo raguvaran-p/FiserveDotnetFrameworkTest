@@ -1,13 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Runtime.InteropServices;
 
-internal class Program
+internal static class Program
 {
     // ============================================================
     // CONFIGURATION
@@ -17,36 +18,26 @@ internal class Program
     private const string Manufacturer = "Fiserv";
 
     // IMPORTANT:
-    // Generate one GUID for your product and KEEP IT THE SAME
-    // for all versions of the same product.
-    //
-    // Replace this with your own GUID.
+    // Generate this ONCE for your product and keep it unchanged
+    // for all releases of the same product.
     private const string UpgradeCode =
-        "{22222222-2222-2222-2222-222222222222}";
+        "{7D3E6A5B-4D92-4A10-9E53-8C7B6F4A2910}";
 
-    // Windows Installer language: English - United States
+    // English - United States
     private const string ProductLanguage = "1033";
 
-    // x86/Intel MSI package.
-    //
-    // If your application must be a native x64 MSI,
-    // change this to:
-    //
-    // x64;1033
-    //
+    // Intel/x86 MSI.
+    // For a native x64 package use "x64;1033".
     private const string TemplateSummary = "Intel;1033";
 
-    // Windows Installer constants
     private const int MSIDBOPEN_CREATE = 3;
 
     private const uint ERROR_SUCCESS = 0;
     private const uint ERROR_NO_MORE_ITEMS = 259;
 
-    
-    // MsiViewModify
     private const int MSIMODIFY_INSERT = 1;
 
-    // Summary Information property IDs
+    // Summary Information properties
     private const uint PID_CODEPAGE = 1;
     private const uint PID_TITLE = 2;
     private const uint PID_SUBJECT = 3;
@@ -60,84 +51,113 @@ internal class Program
     private const uint PID_APPNAME = 18;
     private const uint PID_SECURITY = 19;
 
-    // Summary property data types
     private const uint VT_I2 = 2;
     private const uint VT_I4 = 3;
     private const uint VT_LPSTR = 30;
 
-    // File table maximum
     private const int MaxFiles = 32767;
 
     // ============================================================
-    // Windows Installer API
+    // WINDOWS INSTALLER API
     // ============================================================
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiOpenDatabase(
         string szDatabasePath,
         int szPersist,
         out IntPtr phDatabase);
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiDatabaseOpenView(
         IntPtr hDatabase,
         string szQuery,
         out IntPtr phView);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiViewExecute(
         IntPtr hView,
         IntPtr hRecord);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiViewFetch(
         IntPtr hView,
         out IntPtr hRecord);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiViewModify(
         IntPtr hView,
         int eModifyMode,
         IntPtr hRecord);
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiRecordSetString(
         IntPtr hRecord,
         uint iField,
         string szValue);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiRecordSetInteger(
         IntPtr hRecord,
         uint iField,
         int iValue);
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiRecordSetStream(
         IntPtr hRecord,
         uint iField,
         string szFilePath);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern IntPtr MsiCreateRecord(
         uint cParams);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiViewClose(
         IntPtr hView);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiCloseHandle(
         IntPtr hAny);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiDatabaseCommit(
         IntPtr hDatabase);
 
-    [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiGetSummaryInformation(
         IntPtr hDatabase,
-        string szDatabasePath,
+        string? szDatabasePath,
         uint uiUpdateCount,
         out IntPtr phSummaryInfo);
 
@@ -154,67 +174,109 @@ internal class Program
         IntPtr pftValue,
         IntPtr szValue);
 
-    [DllImport("msi.dll")]
+    [DllImport(
+        "msi.dll",
+        CallingConvention = CallingConvention.Winapi)]
     private static extern uint MsiSummaryInfoPersist(
         IntPtr hSummaryInfo);
 
+    [DllImport(
+        "msi.dll",
+        CharSet = CharSet.Unicode,
+        CallingConvention = CallingConvention.Winapi)]
+    private static extern uint MsiDatabaseIsTablePersistent(
+        IntPtr hDatabase,
+        string szTable);
+
     // ============================================================
-    // Main
+    // MAIN
     // ============================================================
 
     private static int Main(string[] args)
     {
-        Console.WriteLine("===============================================");
-        Console.WriteLine(" Fiserv MSI Builder");
-        Console.WriteLine("===============================================");
+        PrintHeader();
+
+        if (args.Length < 2)
+        {
+            PrintUsage();
+            return 1;
+        }
+
+        string sourceDirectory;
+        string outputMsi;
+        string productVersion;
 
         try
         {
-            if (args.Length < 2)
-            {
-                Console.WriteLine();
-                Console.WriteLine("Usage:");
-                Console.WriteLine(
-                    "MsiBuilder.exe <SourceDirectory> <OutputMsi> [Version]");
-                Console.WriteLine();
-                Console.WriteLine("Example:");
-                Console.WriteLine(
-                    @"MsiBuilder.exe C:\publish C:\output\FiservApplication.msi 1.0.1");
+            sourceDirectory = Path.GetFullPath(args[0]);
+            outputMsi = Path.GetFullPath(args[1]);
 
-                return 1;
-            }
-
-            string sourceDirectory = Path.GetFullPath(args[0]);
-            string outputMsi = Path.GetFullPath(args[1]);
-
-            string productVersion =
+            productVersion =
                 args.Length >= 3
                     ? NormalizeProductVersion(args[2])
                     : "1.0.0";
 
             ValidateSourceDirectory(sourceDirectory);
 
-            Directory.CreateDirectory(
-                Path.GetDirectoryName(outputMsi)!);
+            string? outputDirectory =
+                Path.GetDirectoryName(outputMsi);
 
-            Console.WriteLine();
-            Console.WriteLine($"Source directory : {sourceDirectory}");
-            Console.WriteLine($"Output MSI       : {outputMsi}");
-            Console.WriteLine($"Product name     : {ProductName}");
-            Console.WriteLine($"Manufacturer     : {Manufacturer}");
-            Console.WriteLine($"Product version  : {productVersion}");
-            Console.WriteLine($"Upgrade code     : {UpgradeCode}");
-
-            if (File.Exists(outputMsi))
+            if (string.IsNullOrWhiteSpace(outputDirectory))
             {
-                Console.WriteLine();
-                Console.WriteLine("Deleting previous MSI...");
-                File.Delete(outputMsi);
+                throw new InvalidOperationException(
+                    "Invalid output MSI path.");
             }
 
-            // ========================================================
-            // Collect application files
-            // ========================================================
+            Directory.CreateDirectory(outputDirectory);
+        }
+        catch (Exception ex)
+        {
+            PrintError(ex);
+            return 1;
+        }
+
+        Console.WriteLine($"Source directory : {sourceDirectory}");
+        Console.WriteLine($"Output MSI       : {outputMsi}");
+        Console.WriteLine($"Product name     : {ProductName}");
+        Console.WriteLine($"Manufacturer     : {Manufacturer}");
+        Console.WriteLine($"Product version  : {productVersion}");
+        Console.WriteLine($"Upgrade code     : {UpgradeCode}");
+        Console.WriteLine();
+
+        string workingDirectory =
+            Path.Combine(
+                Path.GetTempPath(),
+                "FiservMsiBuilder",
+                Guid.NewGuid().ToString("N"));
+
+        string cabDirectory =
+            Path.Combine(
+                workingDirectory,
+                "cab");
+
+        string ddfFile =
+            Path.Combine(
+                workingDirectory,
+                "FiservApplication.ddf");
+
+        string cabFile =
+            Path.Combine(
+                cabDirectory,
+                "FiservApplication.cab");
+
+        IntPtr database = IntPtr.Zero;
+
+        try
+        {
+            Directory.CreateDirectory(cabDirectory);
+
+            // ====================================================
+            // STEP 1
+            // ====================================================
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 1 - Collect application files");
+            Console.WriteLine("===============================================");
 
             List<ApplicationFile> files =
                 CollectApplicationFiles(sourceDirectory);
@@ -228,337 +290,283 @@ internal class Program
             if (files.Count > MaxFiles)
             {
                 throw new InvalidOperationException(
-                    $"Too many files. MSI supports a maximum of {MaxFiles} files.");
+                    $"Too many files: {files.Count}. " +
+                    $"Maximum supported by this builder is {MaxFiles}.");
             }
 
-            Console.WriteLine();
             Console.WriteLine(
-                $"Application files found: {files.Count}");
+                $"Files found: {files.Count}");
+            Console.WriteLine();
 
-            // ========================================================
-            // Prepare working directory
-            // ========================================================
+            // ====================================================
+            // STEP 2
+            // ====================================================
 
-            string workingDirectory =
-                Path.Combine(
-                    Path.GetTempPath(),
-                    "FiservMsiBuilder",
-                    Guid.NewGuid().ToString("N"));
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 2 - Create MSI database");
+            Console.WriteLine("===============================================");
 
-            Directory.CreateDirectory(workingDirectory);
-
-            string cabDirectory =
-                Path.Combine(workingDirectory, "cab");
-
-            Directory.CreateDirectory(cabDirectory);
-
-            string ddfFile =
-                Path.Combine(
-                    workingDirectory,
-                    "FiservApplication.ddf");
-
-            string cabFile =
-                Path.Combine(
-                    cabDirectory,
-                    "FiservApplication.cab");
-
-            IntPtr database = IntPtr.Zero;
-
-            try
+            if (File.Exists(outputMsi))
             {
-                // ====================================================
-                // STEP 1
-                // Create MSI database
-                // ====================================================
+                Console.WriteLine(
+                    "Deleting previous MSI...");
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 1 - Create MSI database");
-                Console.WriteLine("===============================================");
+                File.Delete(outputMsi);
+            }
 
-                uint result = MsiOpenDatabase(
+            uint result =
+                MsiOpenDatabase(
                     outputMsi,
                     MSIDBOPEN_CREATE,
                     out database);
 
-                CheckResult(
-                    result,
-                    "MsiOpenDatabase");
+            CheckResult(
+                result,
+                "MsiOpenDatabase");
 
-                // ====================================================
-                // STEP 2
-                // Create Property table
-                // ====================================================
+            Console.WriteLine(
+                "MSI database created.");
+            Console.WriteLine();
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 2 - Property table");
-                Console.WriteLine("===============================================");
+            // ====================================================
+            // STEP 3
+            // ====================================================
 
-                string productCode =
-                    CreateStableGuid(
-                        "PRODUCT:" +
-                        UpgradeCode +
-                        ":" +
-                        productVersion);
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 3 - Create MSI tables");
+            Console.WriteLine("===============================================");
 
-                CreatePropertyTable(
-                    database,
-                    productCode,
+            string productCode =
+                CreateProductCode(
+                    UpgradeCode,
                     productVersion);
 
-                // ====================================================
-                // STEP 3
-                // Create Directory table
-                // ====================================================
+            Console.WriteLine(
+                $"ProductCode: {productCode}");
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 3 - Directory table");
-                Console.WriteLine("===============================================");
+            CreatePropertyTable(
+                database,
+                productCode,
+                productVersion);
 
-                Dictionary<string, string> directoryIds =
-                    CreateDirectoryTable(
-                        database,
-                        sourceDirectory,
-                        files);
-
-                // ====================================================
-                // STEP 4
-                // Component table
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 4 - Component table");
-                Console.WriteLine("===============================================");
-
-                CreateComponentTable(
-                    database,
-                    files,
-                    directoryIds);
-
-                // ====================================================
-                // STEP 5
-                // File table
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 5 - File table");
-                Console.WriteLine("===============================================");
-
-                CreateFileTable(
-                    database,
-                    files,
-                    directoryIds);
-
-                // ====================================================
-                // STEP 6
-                // Feature table
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 6 - Feature table");
-                Console.WriteLine("===============================================");
-
-                CreateFeatureTable(database);
-
-                // ====================================================
-                // STEP 7
-                // FeatureComponents table
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 7 - FeatureComponents table");
-                Console.WriteLine("===============================================");
-
-                CreateFeatureComponentsTable(
+            Dictionary<string, string> directoryIds =
+                CreateDirectoryTable(
                     database,
                     files);
 
-                // ====================================================
-                // STEP 8
-                // Media table
-                // ====================================================
+            CreateComponentTable(
+                database,
+                files,
+                directoryIds);
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 8 - Media table");
-                Console.WriteLine("===============================================");
+            CreateFileTable(
+                database,
+                files);
 
-                CreateMediaTable(
-                    database,
-                    files.Count);
+            CreateFeatureTable(
+                database);
 
-                // ====================================================
-                // STEP 9
-                // InstallExecuteSequence
-                // ====================================================
+            CreateFeatureComponentsTable(
+                database,
+                files);
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 9 - InstallExecuteSequence");
-                Console.WriteLine("===============================================");
+            CreateMediaTable(
+                database,
+                files.Count);
 
-                CreateInstallExecuteSequenceTable(database);
+            CreateInstallExecuteSequenceTable(
+                database);
 
-                // ====================================================
-                // STEP 10
-                // Create CAB
-                // ====================================================
+            Console.WriteLine(
+                "MSI tables created successfully.");
+            Console.WriteLine();
 
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 10 - Create CAB");
-                Console.WriteLine("===============================================");
+            // ====================================================
+            // STEP 4
+            // ====================================================
 
-                CreateDdfFile(
-                    ddfFile,
-                    cabDirectory,
-                    files);
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 4 - Create CAB");
+            Console.WriteLine("===============================================");
 
-                RunMakeCab(
-                    ddfFile,
-                    cabFile);
+            CreateDdfFile(
+                ddfFile,
+                cabDirectory,
+                files);
 
-                if (!File.Exists(cabFile))
-                {
-                    throw new InvalidOperationException(
-                        "CAB file was not created.");
-                }
+            RunMakeCab(
+                ddfFile,
+                cabFile);
 
-                Console.WriteLine(
-                    $"CAB created: {cabFile}");
-
-                Console.WriteLine(
-                    $"CAB size: {new FileInfo(cabFile).Length:N0} bytes");
-
-                // ====================================================
-                // STEP 11
-                // Embed CAB into MSI
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 11 - Embed CAB into MSI");
-                Console.WriteLine("===============================================");
-
-                EmbedCabinet(
-                    database,
-                    cabFile);
-
-                // ====================================================
-                // STEP 12
-                // Summary information
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 12 - Summary information");
-                Console.WriteLine("===============================================");
-
-                string packageCode =
-                    Guid.NewGuid().ToString().ToUpperInvariant();
-
-                SetSummaryInformation(
-                    database,
-                    packageCode);
-
-                // ====================================================
-                // STEP 13
-                // Commit
-                // ====================================================
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" STEP 13 - Commit MSI");
-                Console.WriteLine("===============================================");
-
-                result = MsiDatabaseCommit(database);
-
-                CheckResult(
-                    result,
-                    "MsiDatabaseCommit");
-
-                Console.WriteLine(
-                    "MSI database committed successfully.");
-
-                // ====================================================
-                // STEP 14
-                // Verify
-                // ====================================================
-
-                if (!File.Exists(outputMsi))
-                {
-                    throw new InvalidOperationException(
-                        "MSI file was not created.");
-                }
-
-                FileInfo msiInfo =
-                    new FileInfo(outputMsi);
-
-                Console.WriteLine();
-                Console.WriteLine("===============================================");
-                Console.WriteLine(" SUCCESS");
-                Console.WriteLine("===============================================");
-                Console.WriteLine(
-                    $"MSI: {msiInfo.FullName}");
-
-                Console.WriteLine(
-                    $"Size: {msiInfo.Length:N0} bytes");
-
-                Console.WriteLine(
-                    $"ProductCode: {productCode}");
-
-                Console.WriteLine(
-                    $"PackageCode: {packageCode}");
-
-                Console.WriteLine();
-                Console.WriteLine(
-                    "MSI creation completed successfully.");
-
-                return 0;
-            }
-            finally
+            if (!File.Exists(cabFile))
             {
-                if (database != IntPtr.Zero)
-                {
-                    MsiCloseHandle(database);
-                }
-
-                try
-                {
-                    if (Directory.Exists(workingDirectory))
-                    {
-                        Directory.Delete(
-                            workingDirectory,
-                            true);
-                    }
-                }
-                catch
-                {
-                    // Do not hide the actual MSI build error
-                }
+                throw new InvalidOperationException(
+                    $"CAB file was not created: {cabFile}");
             }
+
+            Console.WriteLine(
+                $"CAB created: {cabFile}");
+
+            Console.WriteLine(
+                $"CAB size: {new FileInfo(cabFile).Length:N0} bytes");
+
+            Console.WriteLine();
+
+            // ====================================================
+            // STEP 5
+            // ====================================================
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 5 - Embed CAB into MSI");
+            Console.WriteLine("===============================================");
+
+            EmbedCabinet(
+                database,
+                cabFile);
+
+            Console.WriteLine(
+                "CAB embedded successfully.");
+            Console.WriteLine();
+
+            // ====================================================
+            // STEP 6
+            // ====================================================
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 6 - Set Summary Information");
+            Console.WriteLine("===============================================");
+
+            string packageCode =
+                Guid.NewGuid()
+                    .ToString()
+                    .ToUpperInvariant();
+
+            SetSummaryInformation(
+                database,
+                packageCode);
+
+            Console.WriteLine(
+                "Summary information created.");
+            Console.WriteLine();
+
+            // ====================================================
+            // STEP 7
+            // ====================================================
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 7 - Commit MSI");
+            Console.WriteLine("===============================================");
+
+            result =
+                MsiDatabaseCommit(
+                    database);
+
+            CheckResult(
+                result,
+                "MsiDatabaseCommit");
+
+            Console.WriteLine(
+                "MSI database committed successfully.");
+            Console.WriteLine();
+
+            // Close before validation.
+            MsiCloseHandle(database);
+            database = IntPtr.Zero;
+
+            // ====================================================
+            // STEP 8
+            // ====================================================
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" STEP 8 - Verify MSI");
+            Console.WriteLine("===============================================");
+
+            VerifyMsiFile(outputMsi);
+
+            Console.WriteLine();
+
+            Console.WriteLine("===============================================");
+            Console.WriteLine(" SUCCESS");
+            Console.WriteLine("===============================================");
+
+            Console.WriteLine(
+                $"MSI              : {outputMsi}");
+
+            Console.WriteLine(
+                $"Size             : {new FileInfo(outputMsi).Length:N0} bytes");
+
+            Console.WriteLine(
+                $"ProductCode      : {productCode}");
+
+            Console.WriteLine(
+                $"PackageCode      : {packageCode}");
+
+            Console.WriteLine(
+                $"Files            : {files.Count}");
+
+            Console.WriteLine();
+            Console.WriteLine(
+                "MSI creation completed successfully.");
+
+            return 0;
         }
         catch (Exception ex)
         {
-            Console.WriteLine();
-            Console.WriteLine("===============================================");
-            Console.WriteLine(" ERROR");
-            Console.WriteLine("===============================================");
-
-            Console.WriteLine(ex);
-
+            PrintError(ex);
             return 1;
+        }
+        finally
+        {
+            if (database != IntPtr.Zero)
+            {
+                MsiCloseHandle(database);
+            }
+
+            try
+            {
+                if (Directory.Exists(workingDirectory))
+                {
+                    Directory.Delete(
+                        workingDirectory,
+                        true);
+                }
+            }
+            catch
+            {
+                // Do not hide the original build error.
+            }
         }
     }
 
     // ============================================================
-    // Validate source
+    // HEADER
+    // ============================================================
+
+    private static void PrintHeader()
+    {
+        Console.WriteLine("===============================================");
+        Console.WriteLine(" Fiserv MSI Builder");
+        Console.WriteLine(" C# / Windows Installer API / makecab.exe");
+        Console.WriteLine("===============================================");
+        Console.WriteLine();
+    }
+
+    private static void PrintUsage()
+    {
+        Console.WriteLine();
+        Console.WriteLine("Usage:");
+        Console.WriteLine();
+        Console.WriteLine(
+            "MsiBuilder.exe <SourceDirectory> <OutputMsi> [Version]");
+        Console.WriteLine();
+        Console.WriteLine("Example:");
+        Console.WriteLine(
+            @"MsiBuilder.exe C:\publish C:\output\FiservApplication.msi 1.0.0");
+        Console.WriteLine();
+    }
+
+    // ============================================================
+    // VALIDATION
     // ============================================================
 
     private static void ValidateSourceDirectory(
@@ -571,14 +579,12 @@ internal class Program
         }
     }
 
-    // ============================================================
-    // Normalize MSI version
-    // ============================================================
-
     private static string NormalizeProductVersion(
         string version)
     {
-        if (!Version.TryParse(version, out Version? parsed))
+        if (!Version.TryParse(
+                version,
+                out Version? parsed))
         {
             throw new ArgumentException(
                 $"Invalid MSI version: {version}");
@@ -586,7 +592,10 @@ internal class Program
 
         int major = parsed.Major;
         int minor = parsed.Minor;
-        int build = parsed.Build < 0 ? 0 : parsed.Build;
+        int build =
+            parsed.Build < 0
+                ? 0
+                : parsed.Build;
 
         if (major > 255)
         {
@@ -609,8 +618,33 @@ internal class Program
         return $"{major}.{minor}.{build}";
     }
 
+    private static void VerifyMsiFile(
+        string msiPath)
+    {
+        if (!File.Exists(msiPath))
+        {
+            throw new InvalidOperationException(
+                "MSI file was not created.");
+        }
+
+        FileInfo info =
+            new FileInfo(msiPath);
+
+        if (info.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "MSI file is empty.");
+        }
+
+        Console.WriteLine(
+            $"MSI exists: {msiPath}");
+
+        Console.WriteLine(
+            $"MSI size: {info.Length:N0} bytes");
+    }
+
     // ============================================================
-    // Collect application files
+    // COLLECT FILES
     // ============================================================
 
     private static List<ApplicationFile>
@@ -646,18 +680,21 @@ internal class Program
 
             string relativeDirectory =
                 Path.GetDirectoryName(
-                    relativePath) ?? string.Empty;
+                    relativePath)
+                ?? string.Empty;
 
             string fileName =
-                Path.GetFileName(relativePath);
+                Path.GetFileName(
+                    relativePath);
 
             FileInfo info =
-                new FileInfo(physicalFile);
+                new FileInfo(
+                    physicalFile);
 
             if (info.Length > int.MaxValue)
             {
                 throw new InvalidOperationException(
-                    $"File is larger than MSI DoubleInteger limit: {physicalFile}");
+                    $"File is too large for this MSI builder: {physicalFile}");
             }
 
             string fileId =
@@ -744,8 +781,13 @@ internal class Program
 
         InsertProperty(
             database,
-            "SecureCustomProperties",
-            "UPGRADEFOUND");
+            "ARPNOMODIFY",
+            "1");
+
+        InsertProperty(
+            database,
+            "ARPNOREPAIR",
+            "1");
 
         Console.WriteLine(
             "Property table created.");
@@ -756,15 +798,14 @@ internal class Program
         string property,
         string value)
     {
-        string sql =
+        ExecuteSql(
+            database,
             "INSERT INTO `Property` " +
             "(`Property`, `Value`) VALUES (" +
             SqlQuote(property) +
             ", " +
             SqlQuote(value) +
-            ")";
-
-        ExecuteSql(database, sql);
+            ")");
     }
 
     // ============================================================
@@ -774,7 +815,6 @@ internal class Program
     private static Dictionary<string, string>
         CreateDirectoryTable(
             IntPtr database,
-            string sourceDirectory,
             List<ApplicationFile> files)
     {
         ExecuteSql(
@@ -785,7 +825,6 @@ internal class Program
             "`DefaultDir` CHAR(255) NOT NULL " +
             "PRIMARY KEY `Directory`)");
 
-        // Root
         ExecuteSql(
             database,
             "INSERT INTO `Directory` " +
@@ -793,7 +832,6 @@ internal class Program
             "VALUES " +
             "('TARGETDIR', NULL, 'SourceDir')");
 
-        // Program Files
         ExecuteSql(
             database,
             "INSERT INTO `Directory` " +
@@ -801,7 +839,6 @@ internal class Program
             "VALUES " +
             "('ProgramFilesFolder', 'TARGETDIR', '.')");
 
-        // Application directory
         ExecuteSql(
             database,
             "INSERT INTO `Directory` " +
@@ -815,15 +852,17 @@ internal class Program
             new Dictionary<string, string>(
                 StringComparer.OrdinalIgnoreCase);
 
-        // Root of application
         directoryIds[string.Empty] =
             "INSTALLDIR";
 
         var directories =
             files
-                .Select(f => f.RelativeDirectory)
-                .Where(d => !string.IsNullOrWhiteSpace(d))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(
+                    f => f.RelativeDirectory)
+                .Where(
+                    d => !string.IsNullOrWhiteSpace(d))
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
                 .OrderBy(
                     d => d.Count(
                         c => c == '\\'))
@@ -839,18 +878,18 @@ internal class Program
                     '\\',
                     StringSplitOptions.RemoveEmptyEntries);
 
-            string currentPath = string.Empty;
+            string currentPath =
+                string.Empty;
 
-            for (int i = 0; i < parts.Length; i++)
+            foreach (string part in parts)
             {
-                string part = parts[i];
-
                 string nextPath =
                     string.IsNullOrEmpty(currentPath)
                         ? part
                         : currentPath + "\\" + part;
 
-                if (directoryIds.ContainsKey(nextPath))
+                if (directoryIds.ContainsKey(
+                        nextPath))
                 {
                     currentPath = nextPath;
                     continue;
@@ -862,7 +901,8 @@ internal class Program
                         : directoryIds[currentPath];
 
                 string directoryId =
-                    CreateDirectoryId(nextPath);
+                    CreateDirectoryId(
+                        nextPath);
 
                 directoryIds[nextPath] =
                     directoryId;
@@ -884,7 +924,7 @@ internal class Program
         }
 
         Console.WriteLine(
-            $"Directory entries created: {directoryIds.Count}");
+            $"Directory entries: {directoryIds.Count}");
 
         return directoryIds;
     }
@@ -912,37 +952,29 @@ internal class Program
         foreach (ApplicationFile file in files)
         {
             string directoryId =
-                directoryIds[file.RelativeDirectory];
-
-            string sql =
-                "INSERT INTO `Component` " +
-                "(`Component`, `ComponentId`, `Directory_`, " +
-                "`Attributes`, `Condition`, `KeyPath`) VALUES (" +
-
-                SqlQuote(file.ComponentId) +
-                ", " +
-
-                SqlQuote(
-                    file.ComponentGuid.ToUpperInvariant()) +
-                ", " +
-
-                SqlQuote(directoryId) +
-                ", " +
-
-                "0, " +
-
-                "NULL, " +
-
-                SqlQuote(file.FileId) +
-                ")";
+                directoryIds[
+                    file.RelativeDirectory];
 
             ExecuteSql(
                 database,
-                sql);
+                "INSERT INTO `Component` " +
+                "(`Component`, `ComponentId`, `Directory_`, " +
+                "`Attributes`, `Condition`, `KeyPath`) VALUES (" +
+                SqlQuote(file.ComponentId) +
+                ", " +
+                SqlQuote(
+                    file.ComponentGuid) +
+                ", " +
+                SqlQuote(directoryId) +
+                ", " +
+                "0, " +
+                "NULL, " +
+                SqlQuote(file.FileId) +
+                ")");
         }
 
         Console.WriteLine(
-            $"Components created: {files.Count}");
+            $"Components: {files.Count}");
     }
 
     // ============================================================
@@ -951,8 +983,7 @@ internal class Program
 
     private static void CreateFileTable(
         IntPtr database,
-        List<ApplicationFile> files,
-        Dictionary<string, string> directoryIds)
+        List<ApplicationFile> files)
     {
         ExecuteSql(
             database,
@@ -969,40 +1000,47 @@ internal class Program
 
         foreach (ApplicationFile file in files)
         {
-            string sql =
-                "INSERT INTO `File` " +
-                "(`File`, `Component_`, `FileName`, `FileSize`, " +
-                "`Version`, `Language`, `Attributes`, `Sequence`) VALUES (" +
-
-                SqlQuote(file.FileId) +
-                ", " +
-
-                SqlQuote(file.ComponentId) +
-                ", " +
-
-                SqlQuote(file.FileName) +
-                ", " +
-
-                file.FileSize.ToString(
-                    System.Globalization.CultureInfo.InvariantCulture) +
-                ", " +
-
-                "NULL, " +
-                "NULL, " +
-                "0, " +
-
-                file.Sequence.ToString(
-                    System.Globalization.CultureInfo.InvariantCulture) +
-
-                ")";
+            string fileName =
+                GetMsiFileName(
+                    file.FileName);
 
             ExecuteSql(
                 database,
-                sql);
+                "INSERT INTO `File` " +
+                "(`File`, `Component_`, `FileName`, `FileSize`, " +
+                "`Version`, `Language`, `Attributes`, `Sequence`) VALUES (" +
+                SqlQuote(file.FileId) +
+                ", " +
+                SqlQuote(file.ComponentId) +
+                ", " +
+                SqlQuote(fileName) +
+                ", " +
+                file.FileSize.ToString(
+                    CultureInfo.InvariantCulture) +
+                ", " +
+                "NULL, " +
+                "NULL, " +
+                "0, " +
+                file.Sequence.ToString(
+                    CultureInfo.InvariantCulture) +
+                ")");
         }
 
         Console.WriteLine(
-            $"Files added to File table: {files.Count}");
+            $"Files in File table: {files.Count}");
+    }
+
+    private static string GetMsiFileName(
+        string fileName)
+    {
+        if (fileName.Contains(
+                '\\'))
+        {
+            throw new InvalidOperationException(
+                $"Invalid file name: {fileName}");
+        }
+
+        return fileName;
     }
 
     // ============================================================
@@ -1031,11 +1069,13 @@ internal class Program
             "(`Feature`, `Feature_Parent`, `Title`, " +
             "`Description`, `Display`, `Level`, " +
             "`Directory_`, `Attributes`) VALUES (" +
-
             "'MainFeature', " +
             "NULL, " +
-            SqlQuote(ProductName) + ", " +
-            SqlQuote("Main application feature") + ", " +
+            SqlQuote(ProductName) +
+            ", " +
+            SqlQuote(
+                "Main application feature") +
+            ", " +
             "1, " +
             "1, " +
             "'INSTALLDIR', " +
@@ -1046,7 +1086,7 @@ internal class Program
     }
 
     // ============================================================
-    // FEATURE COMPONENTS TABLE
+    // FEATURE COMPONENTS
     // ============================================================
 
     private static void CreateFeatureComponentsTable(
@@ -1072,7 +1112,7 @@ internal class Program
         }
 
         Console.WriteLine(
-            $"FeatureComponents created: {files.Count}");
+            $"FeatureComponents: {files.Count}");
     }
 
     // ============================================================
@@ -1099,20 +1139,14 @@ internal class Program
             "INSERT INTO `Media` " +
             "(`DiskId`, `LastSequence`, `DiskPrompt`, " +
             "`Cabinet`, `VolumeLabel`, `Source`) VALUES (" +
-
             "1, " +
-
             fileCount.ToString(
-                System.Globalization.CultureInfo.InvariantCulture) +
+                CultureInfo.InvariantCulture) +
             ", " +
-
             SqlQuote(ProductName) +
             ", " +
-
             "'#FiservApplication.cab', " +
-
-            "'Fiserv', " +
-
+            "'FISERV', " +
             "NULL)");
 
         Console.WriteLine(
@@ -1175,30 +1209,6 @@ internal class Program
             "ProcessComponents",
             null,
             1600);
-
-        AddSequence(
-            database,
-            "UnpublishComponents",
-            null,
-            1700);
-
-        AddSequence(
-            database,
-            "UnpublishFeatures",
-            null,
-            1800);
-
-        AddSequence(
-            database,
-            "RemoveFiles",
-            null,
-            3500);
-
-        AddSequence(
-            database,
-            "RemoveFolders",
-            null,
-            3600);
 
         AddSequence(
             database,
@@ -1278,12 +1288,12 @@ internal class Program
             conditionSql +
             ", " +
             sequence.ToString(
-                System.Globalization.CultureInfo.InvariantCulture) +
+                CultureInfo.InvariantCulture) +
             ")");
     }
 
     // ============================================================
-    // CREATE DDF FILE
+    // DDF
     // ============================================================
 
     private static void CreateDdfFile(
@@ -1316,7 +1326,7 @@ internal class Program
             ".Set CabinetNameTemplate=FiservApplication.cab");
 
         lines.Add(
-            $".Set DiskDirectory1={cabDirectory}");
+            $".Set DiskDirectory1={QuoteDdfValue(cabDirectory)}");
 
         lines.Add(
             ".Set RptFileName=NUL");
@@ -1324,15 +1334,6 @@ internal class Program
         lines.Add(
             ".Set InfFileName=NUL");
 
-        // IMPORTANT:
-        // The destination inside the CAB is the MSI File table
-        // primary key.
-        //
-        // Windows Installer requires the file keys and cabinet
-        // sequence to correspond.
-        //
-        // Microsoft documentation:
-        // File table Sequence must correspond to cabinet order.
         foreach (ApplicationFile file in files)
         {
             string source =
@@ -1351,11 +1352,19 @@ internal class Program
             Encoding.ASCII);
 
         Console.WriteLine(
-            $"DDF created: {ddfFile}");
+            $"DDF: {ddfFile}");
+    }
+
+    private static string QuoteDdfValue(
+        string value)
+    {
+        return value.Contains(' ')
+            ? $"\"{value}\""
+            : value;
     }
 
     // ============================================================
-    // RUN MAKECAB
+    // MAKECAB
     // ============================================================
 
     private static void RunMakeCab(
@@ -1397,7 +1406,10 @@ internal class Program
 
         process.WaitForExit();
 
-        Console.WriteLine(stdout);
+        if (!string.IsNullOrWhiteSpace(stdout))
+        {
+            Console.WriteLine(stdout);
+        }
 
         if (!string.IsNullOrWhiteSpace(stderr))
         {
@@ -1407,7 +1419,8 @@ internal class Program
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"makecab.exe failed with exit code {process.ExitCode}");
+                $"makecab.exe failed with exit code " +
+                $"{process.ExitCode}.");
         }
 
         if (!File.Exists(expectedCabFile))
@@ -1423,16 +1436,20 @@ internal class Program
             Environment.GetEnvironmentVariable(
                 "MAKECAB_PATH");
 
-        if (!string.IsNullOrWhiteSpace(environmentPath) &&
+        if (!string.IsNullOrWhiteSpace(
+                environmentPath) &&
             File.Exists(environmentPath))
         {
             return environmentPath;
         }
 
+        string systemDirectory =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.System);
+
         string system32 =
             Path.Combine(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.System),
+                systemDirectory,
                 "makecab.exe");
 
         if (File.Exists(system32))
@@ -1471,14 +1488,11 @@ internal class Program
 
         try
         {
-            string sql =
-                "INSERT INTO `_Streams` " +
-                "(`Name`, `Data`) VALUES (?, ?)";
-
             uint result =
                 MsiDatabaseOpenView(
                     database,
-                    sql,
+                    "INSERT INTO `_Streams` " +
+                    "(`Name`, `Data`) VALUES (?, ?)",
                     out view);
 
             CheckResult(
@@ -1522,9 +1536,6 @@ internal class Program
             CheckResult(
                 result,
                 "MsiViewExecute(_Streams)");
-
-            Console.WriteLine(
-                "CAB embedded into MSI.");
         }
         finally
         {
@@ -1540,221 +1551,184 @@ internal class Program
         }
     }
 
- // ============================================================
-// SUMMARY INFORMATION
-// ============================================================
+    // ============================================================
+    // SUMMARY INFORMATION
+    // ============================================================
 
-private static void SetSummaryInformation(
-    IntPtr database,
-    string packageCode)
-{
-    IntPtr summaryInfo = IntPtr.Zero;
-
-    try
+    private static void SetSummaryInformation(
+        IntPtr database,
+        string packageCode)
     {
-        uint result =
-            MsiGetSummaryInformation(
-                database,
-                null!,
-                20,
-                out summaryInfo);
+        IntPtr summaryInfo = IntPtr.Zero;
 
-        CheckResult(
-            result,
-            "MsiGetSummaryInformation");
+        try
+        {
+            uint result =
+                MsiGetSummaryInformation(
+                    database,
+                    null,
+                    20,
+                    out summaryInfo);
 
+            CheckResult(
+                result,
+                "MsiGetSummaryInformation");
+
+            if (summaryInfo == IntPtr.Zero)
+            {
+                throw new InvalidOperationException(
+                    "Invalid Summary Information handle.");
+            }
+
+            SetSummaryInteger(
+                summaryInfo,
+                PID_CODEPAGE,
+                VT_I2,
+                1252);
+
+            SetSummaryString(
+                summaryInfo,
+                PID_TITLE,
+                "Installation Database");
+
+            SetSummaryString(
+                summaryInfo,
+                PID_SUBJECT,
+                ProductName);
+
+            SetSummaryString(
+                summaryInfo,
+                PID_AUTHOR,
+                Manufacturer);
+
+            SetSummaryString(
+                summaryInfo,
+                PID_KEYWORDS,
+                "Installer, MSI, Fiserv");
+
+            SetSummaryString(
+                summaryInfo,
+                PID_COMMENTS,
+                "Fiserv Application Installer");
+
+            SetSummaryString(
+                summaryInfo,
+                PID_TEMPLATE,
+                TemplateSummary);
+
+            SetSummaryString(
+                summaryInfo,
+                PID_REVNUMBER,
+                packageCode);
+
+            SetSummaryInteger(
+                summaryInfo,
+                PID_PAGECOUNT,
+                VT_I4,
+                200);
+
+            SetSummaryInteger(
+                summaryInfo,
+                PID_WORDCOUNT,
+                VT_I4,
+                0);
+
+            SetSummaryString(
+                summaryInfo,
+                PID_APPNAME,
+                "Fiserv MSI Builder");
+
+            SetSummaryInteger(
+                summaryInfo,
+                PID_SECURITY,
+                VT_I4,
+                2);
+
+            result =
+                MsiSummaryInfoPersist(
+                    summaryInfo);
+
+            CheckResult(
+                result,
+                "MsiSummaryInfoPersist");
+        }
+        finally
+        {
+            if (summaryInfo != IntPtr.Zero)
+            {
+                MsiCloseHandle(summaryInfo);
+            }
+        }
+    }
+
+    private static void SetSummaryString(
+        IntPtr summaryInfo,
+        uint property,
+        string value)
+    {
         if (summaryInfo == IntPtr.Zero)
         {
             throw new InvalidOperationException(
-                "MsiGetSummaryInformation returned an invalid handle.");
+                "Summary information handle is invalid.");
         }
 
-        Console.WriteLine(
-            "Summary information handle created.");
+        IntPtr valuePtr = IntPtr.Zero;
 
-        // --------------------------------------------------------
-        // Code page
-        // --------------------------------------------------------
-
-        SetSummaryInteger(
-            summaryInfo,
-            PID_CODEPAGE,
-            VT_I2,
-            1252);
-
-        // --------------------------------------------------------
-        // String properties
-        // --------------------------------------------------------
-
-        SetSummaryString(
-            summaryInfo,
-            PID_TITLE,
-            "Installation Database");
-
-        SetSummaryString(
-            summaryInfo,
-            PID_SUBJECT,
-            ProductName);
-
-        SetSummaryString(
-            summaryInfo,
-            PID_AUTHOR,
-            Manufacturer);
-
-        SetSummaryString(
-            summaryInfo,
-            PID_KEYWORDS,
-            "Installer, MSI, Fiserv");
-
-        SetSummaryString(
-            summaryInfo,
-            PID_COMMENTS,
-            "This installer database contains the logic and data required to install "
-            + ProductName);
-
-        SetSummaryString(
-            summaryInfo,
-            PID_TEMPLATE,
-            TemplateSummary);
-
-        SetSummaryString(
-            summaryInfo,
-            PID_REVNUMBER,
-            packageCode.ToUpperInvariant());
-
-        // --------------------------------------------------------
-        // Numeric properties
-        // --------------------------------------------------------
-
-        SetSummaryInteger(
-            summaryInfo,
-            PID_PAGECOUNT,
-            VT_I4,
-            200);
-
-        SetSummaryInteger(
-            summaryInfo,
-            PID_WORDCOUNT,
-            VT_I4,
-            2);
-
-        // --------------------------------------------------------
-        // Application name
-        // --------------------------------------------------------
-
-        SetSummaryString(
-            summaryInfo,
-            PID_APPNAME,
-            "Fiserv MSI Builder");
-
-        // --------------------------------------------------------
-        // Security
-        // --------------------------------------------------------
-
-        SetSummaryInteger(
-            summaryInfo,
-            PID_SECURITY,
-            VT_I4,
-            2);
-
-        // --------------------------------------------------------
-        // Persist summary information
-        // --------------------------------------------------------
-
-        result =
-            MsiSummaryInfoPersist(
-                summaryInfo);
-
-        CheckResult(
-            result,
-            "MsiSummaryInfoPersist");
-
-        Console.WriteLine(
-            "Summary information created.");
-    }
-    finally
-    {
-        if (summaryInfo != IntPtr.Zero)
+        try
         {
-            MsiCloseHandle(summaryInfo);
+            valuePtr =
+                Marshal.StringToCoTaskMemAnsi(
+                    value);
+
+            uint result =
+                MsiSummaryInfoSetPropertyA(
+                    summaryInfo,
+                    property,
+                    VT_LPSTR,
+                    0,
+                    IntPtr.Zero,
+                    valuePtr);
+
+            CheckResult(
+                result,
+                $"MsiSummaryInfoSetPropertyA({property})");
+        }
+        finally
+        {
+            if (valuePtr != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(
+                    valuePtr);
+            }
         }
     }
-}    
-   
 
-private static void SetSummaryString(
-    IntPtr summaryInfo,
-    uint property,
-    string value)
-{
-    if (summaryInfo == IntPtr.Zero)
+    private static void SetSummaryInteger(
+        IntPtr summaryInfo,
+        uint property,
+        uint dataType,
+        int value)
     {
-        throw new InvalidOperationException(
-            "Summary information handle is invalid.");
-    }
-
-    if (string.IsNullOrEmpty(value))
-    {
-        throw new ArgumentException(
-            "Summary information value cannot be null or empty.",
-            nameof(value));
-    }
-
-    IntPtr valuePtr = IntPtr.Zero;
-
-    try
-    {
-        valuePtr =
-            Marshal.StringToCoTaskMemAnsi(value);
+        if (summaryInfo == IntPtr.Zero)
+        {
+            throw new InvalidOperationException(
+                "Summary information handle is invalid.");
+        }
 
         uint result =
             MsiSummaryInfoSetPropertyA(
                 summaryInfo,
                 property,
-                VT_LPSTR,
-                0,
+                dataType,
+                value,
                 IntPtr.Zero,
-                valuePtr);
+                IntPtr.Zero);
 
         CheckResult(
             result,
             $"MsiSummaryInfoSetPropertyA({property})");
     }
-    finally
-    {
-        if (valuePtr != IntPtr.Zero)
-        {
-            Marshal.FreeCoTaskMem(valuePtr);
-        }
-    }
-}
 
-private static void SetSummaryInteger(
-    IntPtr summaryInfo,
-    uint property,
-    uint dataType,
-    int value)
-{
-    if (summaryInfo == IntPtr.Zero)
-    {
-        throw new InvalidOperationException(
-            "Summary information handle is invalid.");
-    }
-
-    uint result =
-        MsiSummaryInfoSetPropertyA(
-            summaryInfo,
-            property,
-            dataType,
-            value,
-            IntPtr.Zero,
-            IntPtr.Zero);
-
-    CheckResult(
-        result,
-        $"MsiSummaryInfoSetPropertyA({property})");
-}
-    
     // ============================================================
     // SQL
     // ============================================================
@@ -1796,7 +1770,7 @@ private static void SetSummaryInteger(
     }
 
     // ============================================================
-    // SQL string escaping
+    // SQL ESCAPING
     // ============================================================
 
     private static string SqlQuote(
@@ -1810,8 +1784,19 @@ private static void SetSummaryInteger(
     }
 
     // ============================================================
-    // Stable GUID
+    // GUIDS
     // ============================================================
+
+    private static string CreateProductCode(
+        string upgradeCode,
+        string version)
+    {
+        return CreateStableGuid(
+            "PRODUCT:" +
+            upgradeCode +
+            ":" +
+            version);
+    }
 
     private static string CreateStableGuid(
         string value)
@@ -1821,15 +1806,14 @@ private static void SetSummaryInteger(
 
         byte[] hash =
             sha1.ComputeHash(
-                Encoding.UTF8.GetBytes(value));
+                Encoding.UTF8.GetBytes(
+                    value));
 
-        // GUID version 5
         hash[6] =
             (byte)(
                 (hash[6] & 0x0F) |
                 0x50);
 
-        // RFC 4122 variant
         hash[8] =
             (byte)(
                 (hash[8] & 0x3F) |
@@ -1858,9 +1842,6 @@ private static void SetSummaryInteger(
                 "DIRECTORY:" +
                 relativeDirectory);
 
-        // Directory identifiers don't need to be GUIDs,
-        // but using a stable hash keeps the identifier
-        // short and deterministic.
         return
             "D" +
             guid
@@ -1873,7 +1854,7 @@ private static void SetSummaryInteger(
     }
 
     // ============================================================
-    // Error handling
+    // ERROR HANDLING
     // ============================================================
 
     private static void CheckResult(
@@ -1883,29 +1864,49 @@ private static void SetSummaryInteger(
         if (result != ERROR_SUCCESS)
         {
             throw new InvalidOperationException(
-                $"{operation} failed. Windows Installer error code: {result}");
+                $"{operation} failed. " +
+                $"Windows Installer error code: {result}.");
         }
     }
 
+    private static void PrintError(
+        Exception ex)
+    {
+        Console.WriteLine();
+        Console.WriteLine("===============================================");
+        Console.WriteLine(" ERROR");
+        Console.WriteLine("===============================================");
+        Console.WriteLine();
+        Console.WriteLine(ex.ToString());
+        Console.WriteLine();
+    }
+
     // ============================================================
-    // Application file model
+    // MODEL
     // ============================================================
 
     private sealed class ApplicationFile
     {
-        public string PhysicalPath { get; set; } = string.Empty;
+        public string PhysicalPath { get; set; }
+            = string.Empty;
 
-        public string RelativePath { get; set; } = string.Empty;
+        public string RelativePath { get; set; }
+            = string.Empty;
 
-        public string RelativeDirectory { get; set; } = string.Empty;
+        public string RelativeDirectory { get; set; }
+            = string.Empty;
 
-        public string FileName { get; set; } = string.Empty;
+        public string FileName { get; set; }
+            = string.Empty;
 
-        public string FileId { get; set; } = string.Empty;
+        public string FileId { get; set; }
+            = string.Empty;
 
-        public string ComponentId { get; set; } = string.Empty;
+        public string ComponentId { get; set; }
+            = string.Empty;
 
-        public string ComponentGuid { get; set; } = string.Empty;
+        public string ComponentGuid { get; set; }
+            = string.Empty;
 
         public int Sequence { get; set; }
 
