@@ -1,4 +1,4 @@
-name: Build ASP.NET Framework Application
+name: Build and Package Fiserve Application
 
 on:
   push:
@@ -7,67 +7,148 @@ on:
   workflow_dispatch:
   
 jobs:
-  build:
-    runs-on: windows-latest
+  build-publish:
+    name: Build, Publish and Upload ZIP
+    runs-on: windows-2022
 
     steps:
 
-      - name: Checkout Source Code
+      # ==========================================================
+      # 1. Checkout
+      # ==========================================================
+
+      - name: Checkout repository
         uses: actions/checkout@v4
+      # ==========================================================
+      # Azure login
+      # ==========================================================
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+      # ==========================================================
+      # 2. Setup .NET
+      # ==========================================================
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+
+      # ==========================================================
+      # 3. Setup MSBuild
+      # ==========================================================
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
 
-      - name: Restore NuGet Packages
+      # ==========================================================
+      # 4. Restore NuGet packages
+      # ==========================================================
+
+      - name: Restore NuGet packages
+        shell: pwsh
         run: |
-          nuget restore FiserveDotnetFrameworkTest.slnx -PackagesDirectory packages
+          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
 
-      - name: Build Solution
-        run: |
-          msbuild FiserveDotnetFrameworkTest.slnx /p:Configuration=Release
+          New-Item `
+            -ItemType Directory `
+            -Path $packagesDirectory `
+            -Force | Out-Null
 
-      - name: Publish ASP.NET Application
+          nuget restore FiserveDotnetFrameworkTest.csproj `
+            -PackagesDirectory "$packagesDirectory"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "NuGet restore failed."
+          }
+
+
+      # ==========================================================
+      # 5. Build
+      # ==========================================================
+
+      - name: Build application
+        shell: pwsh
         run: |
           msbuild FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
-            /p:DeployOnBuild=true `
-            /p:DeployDefaultTarget=WebPublish `
+            /p:Platform="AnyCPU"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Application build failed."
+          }
+
+
+      # ==========================================================
+      # 6. Publish
+      # ==========================================================
+
+      - name: Publish application
+        shell: pwsh
+        run: |
+          $publishDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "publish"
+
+          if (Test-Path $publishDirectory) {
+            Remove-Item `
+              $publishDirectory `
+              -Recurse `
+              -Force
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $publishDirectory `
+            -Force | Out-Null
+
+          msbuild FiserveDotnetFrameworkTest.csproj `
+            /t:WebPublish `
+            /p:Configuration=Release `
+            /p:Platform="AnyCPU" `
             /p:WebPublishMethod=FileSystem `
-            /p:DeleteExistingFiles=true `
-            /p:PublishUrl="${{ github.workspace }}\publish"
+            /p:publishUrl="$publishDirectory" `
+            /p:DeleteExistingFiles=true
 
-      - name: Verify Publish Output
-        run: |
-          Write-Host "===== PUBLISH DIRECTORY ====="
-          Get-ChildItem "${{ github.workspace }}\publish" -Recurse
+          if ($LASTEXITCODE -ne 0) {
+            throw "Application publish failed."
+          }
 
-      - name: Install WiX Toolset
+
+      # ==========================================================
+      # 7. Create ZIP from published output
+      # ==========================================================
+
+      - name: Create ZIP
         shell: pwsh
         run: |
-          dotnet tool install --global wix
-           
-      - name: Build MSI
-        shell: pwsh
-        run: |
-          Write-Host "===== BUILDING MSI ====="
+          $publishDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "publish"
 
-          wix build `
-            -acceptEula wix7 `
-            -d PublishDir="${{ github.workspace }}\publish" `
-            Installer\Product.wxs `
-            -o "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
+          $zipPath = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "FiserveApplication.zip"
+
+          Compress-Archive `
+            -Path "$publishDirectory\*" `
+            -DestinationPath $zipPath `
+            -Force
+
+          if (!(Test-Path $zipPath)) {
+            throw "ZIP file was not created."
+          }
 
 
-          
-      - name: Verify MSI
-        shell: pwsh
-        run: |
-          Write-Host "===== MSI OUTPUT ====="
-          Get-Item "${{ github.workspace }}\FiserveDotnetFrameworkTest.msi"
-      - name: Upload MSI Artifact
+      # ==========================================================
+      # 8. Upload ZIP artifact
+      # ==========================================================
+
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
           name: FiserveDotnetFrameworkTest-MSI
