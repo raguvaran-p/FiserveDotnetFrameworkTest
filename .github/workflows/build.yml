@@ -3,7 +3,7 @@ name: Build Fiserve MSI
 on:
   push:
     branches:
-      - backup-msi-without-installers
+      - dotnet-framework-4.8-nonwix-msi-ci
 
   workflow_dispatch:
 
