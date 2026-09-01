@@ -1,52 +1,44 @@
-name: Build and Package Fiserve Application
+
+
+name: Build and Push Docker Image (.NET Framework 4.8)
 
 on:
   push:
     branches:
-      - dotnet-framework-4.8-zip-azure-harness
-
+      - main
   workflow_dispatch:
-  
-permissions:
-  contents: read
-  
+
 jobs:
-  build-publish:
-    name: Build, Publish and Upload ZIP
+  build:
     runs-on: windows-2022
+
+    permissions:
+      contents: read
 
     steps:
 
       # ==========================================================
-      # 1. Checkout
+      # 1. Checkout repository
       # ==========================================================
 
-      - name: Checkout repository
+      - name: Checkout source code
         uses: actions/checkout@v4
-      # ==========================================================
-      # Azure login
-      # ==========================================================
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-      # ==========================================================
-      # 2. Setup .NET
-      # ==========================================================
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
 
 
       # ==========================================================
-      # 3. Setup MSBuild
+      # 2. Setup MSBuild
       # ==========================================================
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+
+
+      # ==========================================================
+      # 3. Setup NuGet
+      # ==========================================================
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
 
 
       # ==========================================================
@@ -56,29 +48,34 @@ jobs:
       - name: Restore NuGet packages
         shell: pwsh
         run: |
-          $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
+          Write-Host "=========================================="
+          Write-Host " Restoring NuGet packages"
+          Write-Host "=========================================="
 
-          New-Item `
-            -ItemType Directory `
-            -Path $packagesDirectory `
-            -Force | Out-Null
-
-          nuget restore FiserveDotnetFrameworkTest.csproj `
-            -PackagesDirectory "$packagesDirectory"
+          nuget restore `
+            FiserveDotnetFrameworkTest.slnx `
+            -PackagesDirectory packages
 
           if ($LASTEXITCODE -ne 0) {
             throw "NuGet restore failed."
           }
 
+          Write-Host "NuGet restore completed successfully."
+
 
       # ==========================================================
-      # 5. Build
+      # 5. Build .NET Framework 4.8 application
       # ==========================================================
 
-      - name: Build application
+      - name: Build .NET Framework 4.8 application
         shell: pwsh
         run: |
-          msbuild FiserveDotnetFrameworkTest.csproj `
+          Write-Host "=========================================="
+          Write-Host " Building .NET Framework 4.8 application"
+          Write-Host "=========================================="
+
+          msbuild `
+            FiserveDotnetFrameworkTest.slnx `
             /p:Configuration=Release `
             /p:Platform="AnyCPU"
 
@@ -86,14 +83,20 @@ jobs:
             throw "Application build failed."
           }
 
+          Write-Host "Application build completed successfully."
+
 
       # ==========================================================
-      # 6. Publish
+      # 6. Publish ASP.NET Framework application
       # ==========================================================
 
-      - name: Publish application
+      - name: Publish ASP.NET Framework application
         shell: pwsh
         run: |
+          Write-Host "=========================================="
+          Write-Host " Publishing application"
+          Write-Host "=========================================="
+
           $publishDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "publish"
@@ -110,95 +113,109 @@ jobs:
             -Path $publishDirectory `
             -Force | Out-Null
 
-          msbuild FiserveDotnetFrameworkTest.csproj `
-            /t:WebPublish `
+          msbuild `
+            FiserveDotnetFrameworkTest.csproj `
             /p:Configuration=Release `
             /p:Platform="AnyCPU" `
+            /p:DeployOnBuild=true `
+            /p:DeployDefaultTarget=WebPublish `
             /p:WebPublishMethod=FileSystem `
-            /p:publishUrl="$publishDirectory" `
-            /p:DeleteExistingFiles=true
+            /p:DeleteExistingFiles=true `
+            /p:PublishUrl="$publishDirectory"
 
           if ($LASTEXITCODE -ne 0) {
             throw "Application publish failed."
           }
 
+          Write-Host "Publish completed successfully."
+
+          Write-Host "Published files:"
+          Get-ChildItem $publishDirectory -Recurse
+
 
       # ==========================================================
-      # 7. Create ZIP from published output
+      # 7. Run tests - optional
       # ==========================================================
 
-      - name: Create ZIP
+      # Enable this only if your repository has .NET Framework
+      # test projects compatible with the runner.
+      #
+      # - name: Run tests
+      #   shell: pwsh
+      #   run: |
+      #     vstest.console.exe "path\to\test.dll"
+
+
+      # ==========================================================
+      # 8. Log in to Docker registry
+      # ==========================================================
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERUSER }}
+          password: ${{ secrets.DOCKERPWD }}
+
+
+      # ==========================================================
+      # 9. Build Docker image
+      # ==========================================================
+
+      - name: Build Docker image
         shell: pwsh
         run: |
-          $publishDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "publish"
+          $IMAGE_NAME = "my-dotnet-framework-app"
+          $IMAGE_TAG = "TestImage"
 
-          $zipPath = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "FiserveApplication.zip"
+          Write-Host "=========================================="
+          Write-Host " Building Docker image"
+          Write-Host "=========================================="
 
-          Compress-Archive `
-            -Path "$publishDirectory\*" `
-            -DestinationPath $zipPath `
-            -Force
+          docker build `
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" `
+            .
 
-          if (!(Test-Path $zipPath)) {
-            throw "ZIP file was not created."
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker image build failed."
           }
 
+          Write-Host "Docker image built successfully."
+
 
       # ==========================================================
-      # 8. Upload ZIP artifact
+      # 10. Tag Docker image
       # ==========================================================
 
-      - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: FiserveApplication
-          path: FiserveApplication.zip
-          if-no-files-found: error
-
-      # ==========================================================
-      # 9. Upload ZIP to Azure Blob Storage
-      # ==========================================================
-
-      - name: Upload ZIP to Azure Storage
+      - name: Tag Docker image
         shell: pwsh
-        env:
-          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
         run: |
-          az storage blob upload `
-            --account-name "fiservstacc1" `
-            --account-key "$env:AZURE_STORAGE_ACCOUNT_KEY" `
-            --container-name "harnesscontainer" `
-            --name "FiserveApplication.zip" `
-            --file "$env:GITHUB_WORKSPACE\FiserveApplication.zip" `
-            --auth-mode key `
-            --overwrite true
+          $IMAGE_NAME = "my-dotnet-framework-app"
+          $IMAGE_TAG = "TestImage"
+
+          docker tag `
+            "${IMAGE_NAME}:${IMAGE_TAG}" `
+            "${{ secrets.DOCKERUSER }}/${IMAGE_NAME}:${IMAGE_TAG}"
+
 
       # ==========================================================
-      # 10. Trigger Harness CD
+      # 11. Push Docker image
       # ==========================================================
 
-      - name: Trigger Harness CD
-        if: success()
+      - name: Push Docker image
         shell: pwsh
-        env:
-          HARNESS_WEBHOOK_URL: ${{ secrets.HARNESS_WEBHOOK_URL }}
         run: |
-          $body = @{
-            sample_key = "sample_value"
-          } | ConvertTo-Json -Compress
+          $IMAGE_NAME = "my-dotnet-framework-app"
+          $IMAGE_TAG = "TestImage"
 
-          Invoke-RestMethod `
-            -Method POST `
-            -Uri $env:HARNESS_WEBHOOK_URL `
-            -ContentType "application/json" `
-            -Body $body
+          Write-Host "=========================================="
+          Write-Host " Pushing Docker image"
+          Write-Host "=========================================="
 
-          echo "Harness Response:"
-          echo "Harness CD triggered successfully."
-          
-          
-        
+          docker push `
+            "${{ secrets.DOCKERUSER }}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Docker image push failed."
+          }
+
+          Write-Host "Docker image pushed successfully."
