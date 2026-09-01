@@ -190,7 +190,7 @@ jobs:
         shell: pwsh
         run: |
           $IMAGE_NAME = "my-dotnet-framework-app"
-          $IMAGE_TAG = "TestImage"
+          $IMAGE_TAG = "TestImageframework"
 
           docker tag `
             "${IMAGE_NAME}:${IMAGE_TAG}" `
@@ -205,7 +205,7 @@ jobs:
         shell: pwsh
         run: |
           $IMAGE_NAME = "my-dotnet-framework-app"
-          $IMAGE_TAG = "TestImage"
+          $IMAGE_TAG = "TestImageframework"
 
           Write-Host "=========================================="
           Write-Host " Pushing Docker image"
