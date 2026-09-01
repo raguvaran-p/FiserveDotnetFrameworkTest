@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/dotnet/framework/sdk:4.8 AS build
+
+FROM mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022
  
 WORKDIR C:/src
 
