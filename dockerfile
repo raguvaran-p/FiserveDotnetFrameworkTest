@@ -3,7 +3,9 @@ FROM mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-ltsc2022
  
 WORKDIR C:/src
 
-COPY . .
+COPY *.slnx ./
+COPY *.csproj ./
+
 
 RUN nuget restore
 
