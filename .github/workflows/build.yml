@@ -3,8 +3,7 @@ name: Build Fiserve MSI
 on:
   push:
     branches:
-      - msi-release
-
+      - nonwix-msi-release
   workflow_dispatch:
 
 jobs:
