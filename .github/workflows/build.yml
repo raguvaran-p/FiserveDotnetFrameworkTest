@@ -77,7 +77,7 @@ jobs:
           msbuild `
             FiserveDotnetFrameworkTest.slnx `
             /p:Configuration=Release `
-            /p:Platform="AnyCPU"
+            /p:Platform="Any CPU"
 
           if ($LASTEXITCODE -ne 0) {
             throw "Application build failed."
