@@ -3,7 +3,7 @@ name: Build ASP.NET Framework Application
 on:
   push:
     branches:
-      - backup-msi-ci-working
+      - dotnet-framework-4.8-wix-msi-ci
   workflow_dispatch:
   
 jobs:
