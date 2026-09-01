@@ -3,17 +3,15 @@ name: Build and Package Fiserve Application
 on:
   push:
     branches:
-      - dotnet-framework-4.8-zip-azure-harness
-
+      - dotnet-framework-4.8-wix-msi-ci
   workflow_dispatch:
   
 permissions:
   contents: read
   
 jobs:
-  build-publish:
-    name: Build, Publish and Upload ZIP
-    runs-on: windows-2022
+  build:
+    runs-on: windows-2019
 
     steps:
 
