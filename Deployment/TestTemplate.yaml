@@ -1,60 +1,27 @@
 template:
   name: templateInvoke
   identifier: templateInvoke
-  versionLabel: v2
+  versionLabel: v1
   type: Pipeline
   projectIdentifier: FrameworkDeployment
   orgIdentifier: default
   tags: {}
-
   spec:
-    
-	  parameters:
-
-      - name: gitBranch
-        type: String
-        default: parameters_v2
-
-      - name: artifactName
-        type: String
-        default: FiserveApplication.zip
-
-      - name: iisSiteName
-        type: String
-        default: deploy
-
-      - name: iisPhysicalPath
-        type: String
-        default: C:\inetpub\wwwroot\deploy
-
-      - name: iisPort
-        type: String
-        default: "8082"
-
-      - name: appPoolName
-        type: String
-        default: deploy
-	
-  stages:
+    stages:
       - stage:
           name: deployjob
           identifier: deployjob
           type: Deployment
-
           spec:
             deploymentType: WinRm
-
             service:
               serviceRef: winrmservice
-
             environment:
               environmentRef: AzureEnv
               infrastructureDefinitions:
                 - identifier: azurevm
-
             execution:
               steps:
-
                 - step:
                     type: Command
                     name: CloneGitHubRepo
@@ -72,7 +39,7 @@ template:
                               type: Inline
                               spec:
                                 script: |
-                                  git clone --depth 1 --branch <+template.parameters.gitBranch> https://github.com/raguvaran-p/FiserveDotnetFrameworkTest C:\temp\repo
+                                  git clone --depth 1 --branch clone-dotnet-framework-4.8-nonwix-msi-ci https://github.com/raguvaran-p/FiserveDotnetFrameworkTest C:\temp\repo
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -89,7 +56,6 @@ template:
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
                 - step:
                     type: Command
                     name: CopyFileToAzureVM
@@ -108,18 +74,11 @@ template:
                               spec:
                                 script: |
                                   Write-Host "Copying file on Azure VM..."
-
-                                  if (-not (Test-Path "C:\temp\github_files2")) {
-                                      New-Item -ItemType Directory -Path "C:\temp\github_files2" -Force
+                                  if (-not (Test-Path "C:\temp\github_files1")) {
+                                      New-Item -ItemType Directory -Path "C:\temp\github_files1" -Force
                                   }
-                                  $artifactName = "<+template.parameters.artifactName>"
-								  
-                                  Copy-Item 
-									"C:\temp\repo\Artifact\*.zip" 
-									-Destination "C:\temp\github_files2\" 
-									-Force
-
-                                  Write-Host "File copied successfully to C:\temp\github_files2\"
+                                  Copy-Item "C:\temp\repo\Artifact\*.zip" -Destination "C:\temp\github_files1\" -Force
+                                  Write-Host "File copied successfully to C:\temp\github_files1\"
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -136,7 +95,6 @@ template:
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
                 - step:
                     type: Command
                     name: ExtractToIIS
@@ -157,19 +115,14 @@ template:
                                   Write-Host "=========================================="
                                   Write-Host "Extracting ZIP to IIS wwwroot\deploy"
                                   Write-Host "=========================================="
-
-                                  $zipFolder = "C:\temp\github_files2"
-                                  $extractPath = "<+template.parameters.iisPhysicalPath>"
-
+                                  $zipFolder = "C:\temp\github_files1"
+                                  $extractPath = "C:\inetpub\wwwroot\deploy"
                                   $zipFile = Get-ChildItem -Path $zipFolder -Filter "*.zip" -File | Select-Object -First 1
-
                                   if (-not $zipFile) {
                                       throw "ERROR: No ZIP file found in $zipFolder"
                                   }
-
                                   Write-Host "ZIP Found: $($zipFile.FullName)"
                                   Write-Host "Extract Path: $extractPath"
-
                                   if (-not (Test-Path $extractPath)) {
                                       Write-Host "Creating directory: $extractPath"
                                       New-Item -ItemType Directory -Path $extractPath -Force | Out-Null
@@ -178,14 +131,11 @@ template:
                                       Write-Host "Cleaning existing deploy folder..."
                                       Remove-Item -Path "$extractPath\*" -Recurse -Force -ErrorAction SilentlyContinue
                                   }
-
                                   Write-Host "Extracting ZIP..."
                                   Expand-Archive -Path $zipFile.FullName -DestinationPath $extractPath -Force
-
                                   Write-Host "=========================================="
                                   Write-Host "Extraction completed successfully!"
                                   Write-Host "=========================================="
-
                                   Write-Host "Contents of $extractPath :"
                                   Get-ChildItem -Path $extractPath | Format-Table Name, Length, LastWriteTime
                     failureStrategies:
@@ -206,7 +156,6 @@ template:
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
                 - step:
                     type: Command
                     name: ConfigureIISWebsite
@@ -227,70 +176,44 @@ template:
                                   Write-Host "=========================================="
                                   Write-Host "Configuring IIS Website"
                                   Write-Host "=========================================="
-
                                   Import-Module WebAdministration
-
-                                  $siteName = "<+template.parameters.iisSiteName>"
-                                  $physicalPath = "<+template.parameters.iisPhysicalPath>"
-                                  $port = [int]"<+template.parameters.iisPort>"
-                                  $appPoolName = "<+template.parameters.appPoolName>"
-
+                                  $siteName = "deploy"
+                                  $physicalPath = "C:\inetpub\wwwroot\deploy"
+                                  $port = 8082
+                                  $appPoolName = "deploy"
                                   Write-Host "Site Name    : $siteName"
                                   Write-Host "Physical Path: $physicalPath"
                                   Write-Host "Port         : $port"
                                   Write-Host "App Pool     : $appPoolName"
-
                                   if (-not (Test-Path "IIS:\AppPools\$appPoolName")) {
                                       Write-Host "Creating Application Pool: $appPoolName"
-
                                       New-WebAppPool -Name $appPoolName
-
                                       Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedRuntimeVersion -Value "v4.0"
-
                                       Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedPipelineMode -Value "Integrated"
                                   }
                                   else {
                                       Write-Host "Application Pool already exists: $appPoolName"
                                   }
-
                                   if (Test-Path "IIS:\Sites\$siteName") {
-
                                       Write-Host "Website already exists. Updating configuration..."
-
                                       Stop-Website -Name $siteName -ErrorAction SilentlyContinue
-
                                       Set-ItemProperty "IIS:\Sites\$siteName" -Name physicalPath -Value $physicalPath
-
                                       Start-Website -Name $siteName
                                   }
                                   else {
-
                                       Write-Host "Creating new IIS Website: $siteName"
-
-                                      New-Website -Name $siteName `
-                                                  -PhysicalPath $physicalPath `
-                                                  -ApplicationPool $appPoolName `
-                                                  -Port $port
+                                      New-Website -Name $siteName -PhysicalPath $physicalPath -ApplicationPool $appPoolName -Port $port
                                   }
-
                                   Start-WebAppPool -Name $appPoolName -ErrorAction SilentlyContinue
-
                                   Start-Website -Name $siteName -ErrorAction SilentlyContinue
-
                                   Write-Host "=========================================="
                                   Write-Host "IIS Website Status"
                                   Write-Host "=========================================="
-
-                                  Get-Website |
-                                      Where-Object Name -eq $siteName |
-                                      Select-Object Name, State, PhysicalPath, ApplicationPool
-
+                                  Get-Website | Where-Object Name -eq $siteName | Select-Object Name, State, PhysicalPath, ApplicationPool
                                   Write-Host "=========================================="
                                   Write-Host "Application Pool Status"
                                   Write-Host "=========================================="
-
                                   Get-WebAppPoolState -Name $appPoolName
-
                                   Write-Host "=========================================="
                                   Write-Host "IIS Website configured successfully!"
                                   Write-Host "Access URL: http://localhost:$port"
@@ -311,9 +234,7 @@ template:
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
               rollbackSteps: []
-
           failureStrategies:
             - onFailure:
                 errors:
