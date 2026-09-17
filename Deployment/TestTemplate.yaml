@@ -1,14 +1,41 @@
 template:
   name: templateInvoke
   identifier: templateInvoke
-  versionLabel: v1
+  versionLabel: v2
   type: Pipeline
   projectIdentifier: FrameworkDeployment
   orgIdentifier: default
   tags: {}
 
   spec:
-    stages:
+    
+	  parameters:
+
+      - name: gitBranch
+        type: String
+        default: parameters_v2
+
+      - name: artifactName
+        type: String
+        default: FiserveApplication.zip
+
+      - name: iisSiteName
+        type: String
+        default: deploy
+
+      - name: iisPhysicalPath
+        type: String
+        default: C:\inetpub\wwwroot\deploy
+
+      - name: iisPort
+        type: String
+        default: "8082"
+
+      - name: appPoolName
+        type: String
+        default: deploy
+	
+  stages:
       - stage:
           name: deployjob
           identifier: deployjob
@@ -45,7 +72,7 @@ template:
                               type: Inline
                               spec:
                                 script: |
-                                  git clone --depth 1 --branch template-dotnetfx4.8 https://github.com/raguvaran-p/FiserveDotnetFrameworkTest C:\temp\repo
+                                  git clone --depth 1 --branch <+template.parameters.gitBranch> https://github.com/raguvaran-p/FiserveDotnetFrameworkTest C:\temp\repo
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -85,8 +112,12 @@ template:
                                   if (-not (Test-Path "C:\temp\github_files2")) {
                                       New-Item -ItemType Directory -Path "C:\temp\github_files2" -Force
                                   }
-
-                                  Copy-Item "C:\temp\repo\Artifact\*.zip" -Destination "C:\temp\github_files2\" -Force
+                                  $artifactName = "<+template.parameters.artifactName>"
+								  
+                                  Copy-Item 
+									"C:\temp\repo\Artifact\*.zip" 
+									-Destination "C:\temp\github_files2\" 
+									-Force
 
                                   Write-Host "File copied successfully to C:\temp\github_files2\"
                     failureStrategies:
@@ -127,8 +158,8 @@ template:
                                   Write-Host "Extracting ZIP to IIS wwwroot\deploy"
                                   Write-Host "=========================================="
 
-                                  $zipFolder = "C:\temp\github_files1"
-                                  $extractPath = "C:\inetpub\wwwroot\deploy"
+                                  $zipFolder = "C:\temp\github_files2"
+                                  $extractPath = "<+template.parameters.iisPhysicalPath>"
 
                                   $zipFile = Get-ChildItem -Path $zipFolder -Filter "*.zip" -File | Select-Object -First 1
 
@@ -199,10 +230,10 @@ template:
 
                                   Import-Module WebAdministration
 
-                                  $siteName = "deploy"
-                                  $physicalPath = "C:\inetpub\wwwroot\deploy"
-                                  $port = 8082
-                                  $appPoolName = "deploy"
+                                  $siteName = "<+template.parameters.iisSiteName>"
+                                  $physicalPath = "<+template.parameters.iisPhysicalPath>"
+                                  $port = [int]"<+template.parameters.iisPort>"
+                                  $appPoolName = "<+template.parameters.appPoolName>"
 
                                   Write-Host "Site Name    : $siteName"
                                   Write-Host "Physical Path: $physicalPath"
