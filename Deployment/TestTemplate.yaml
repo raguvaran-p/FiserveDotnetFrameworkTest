@@ -1,0 +1,291 @@
+template:
+  name: Templatefx
+  identifier: templatefx
+  versionLabel: v1
+  type: Pipeline
+  projectIdentifier: FrameworkDeployment
+  orgIdentifier: default
+  tags: {}
+
+  spec:
+    stages:
+      - stage:
+          name: deployjob
+          identifier: deployjob
+          type: Deployment
+
+          spec:
+            deploymentType: WinRm
+
+            service:
+              serviceRef: winrmservice
+
+            environment:
+              environmentRef: AzureEnv
+              infrastructureDefinitions:
+                - identifier: azurevm
+
+            execution:
+              steps:
+
+                - step:
+                    type: Command
+                    name: CloneGitHubRepo
+                    identifier: CloneGitHubRepo
+                    spec:
+                      onDelegate: false
+                      commandUnits:
+                        - identifier: GitClone
+                          name: GitClone
+                          type: Script
+                          spec:
+                            shell: PowerShell
+                            source:
+                              type: Inline
+                              spec:
+                                script: |
+                                  git clone --depth 1 --branch clone-dotnet-framework-4.8-nonwix-msi-ci https://github.com/raguvaran-p/FiserveDotnetFrameworkTest C:\temp\repo
+                    timeout: 10m
+                    failureStrategies:
+                      - onFailure:
+                          errors:
+                            - AllErrors
+                          action:
+                            type: Retry
+                            spec:
+                              retryCount: 2
+                              retryIntervals:
+                                - 30s
+                              onRetryFailure:
+                                action:
+                                  type: MarkAsFailure
+                    strategy:
+                      repeat:
+                        items: <+stage.output.hosts>
+
+                - step:
+                    type: Command
+                    name: CopyFileToAzureVM
+                    identifier: CopyFileToAzureVM
+                    spec:
+                      onDelegate: false
+                      commandUnits:
+                        - identifier: CopyFile
+                          name: CopyFile
+                          type: Script
+                          spec:
+                            shell: PowerShell
+                            source:
+                              type: Inline
+                              spec:
+                                script: |
+                                  Write-Host "Copying file on Azure VM..."
+
+                                  if (-not (Test-Path "C:\temp\github_files1")) {
+                                      New-Item -ItemType Directory -Path "C:\temp\github_files1" -Force
+                                  }
+
+                                  Copy-Item "C:\temp\repo\Artifact\*.zip" -Destination "C:\temp\github_files1\" -Force
+
+                                  Write-Host "File copied successfully to C:\temp\github_files1\"
+                    timeout: 10m
+                    failureStrategies:
+                      - onFailure:
+                          errors:
+                            - AllErrors
+                          action:
+                            type: Retry
+                            spec:
+                              retryCount: 2
+                              retryIntervals:
+                                - 30s
+                              onRetryFailure:
+                                action:
+                                  type: MarkAsFailure
+                    strategy:
+                      repeat:
+                        items: <+stage.output.hosts>
+
+                - step:
+                    type: Command
+                    name: ExtractToIIS
+                    identifier: ExtractToIIS
+                    spec:
+                      onDelegate: false
+                      commandUnits:
+                        - identifier: ExtractZip
+                          name: ExtractZip
+                          type: Script
+                          spec:
+                            shell: PowerShell
+                            source:
+                              type: Inline
+                              spec:
+                                script: |
+                                  Write-Host "=========================================="
+                                  Write-Host "Extracting ZIP to IIS wwwroot\deploy"
+                                  Write-Host "=========================================="
+
+                                  $zipFolder = "C:\temp\github_files1"
+                                  $extractPath = "C:\inetpub\wwwroot\deploy"
+
+                                  $zipFile = Get-ChildItem -Path $zipFolder -Filter "*.zip" -File | Select-Object -First 1
+
+                                  if (-not $zipFile) {
+                                      throw "ERROR: No ZIP file found in $zipFolder"
+                                  }
+
+                                  Write-Host "ZIP Found: $($zipFile.FullName)"
+                                  Write-Host "Extract Path: $extractPath"
+
+                                  if (-not (Test-Path $extractPath)) {
+                                      Write-Host "Creating directory: $extractPath"
+                                      New-Item -ItemType Directory -Path $extractPath -Force | Out-Null
+                                  }
+                                  else {
+                                      Write-Host "Cleaning existing deploy folder..."
+                                      Remove-Item -Path "$extractPath\*" -Recurse -Force -ErrorAction SilentlyContinue
+                                  }
+
+                                  Write-Host "Extracting ZIP..."
+                                  Expand-Archive -Path $zipFile.FullName -DestinationPath $extractPath -Force
+
+                                  Write-Host "=========================================="
+                                  Write-Host "Extraction completed successfully!"
+                                  Write-Host "=========================================="
+
+                                  Write-Host "Contents of $extractPath :"
+                                  Get-ChildItem -Path $extractPath | Format-Table Name, Length, LastWriteTime
+                      timeout: 10m
+                      failureStrategies:
+                        - onFailure:
+                            errors:
+                              - AllErrors
+                            action:
+                              type: Retry
+                              spec:
+                                retryCount: 3
+                                retryIntervals:
+                                  - 30s
+                                  - 1m
+                                  - 2m
+                                onRetryFailure:
+                                  action:
+                                    type: MarkAsFailure
+                      strategy:
+                        repeat:
+                          items: <+stage.output.hosts>
+
+                - step:
+                    type: Command
+                    name: ConfigureIISWebsite
+                    identifier: ConfigureIISWebsite
+                    spec:
+                      onDelegate: false
+                      commandUnits:
+                        - identifier: CreateIISSite
+                          name: CreateIISSite
+                          type: Script
+                          spec:
+                            shell: PowerShell
+                            source:
+                              type: Inline
+                              spec:
+                                script: |
+                                  Write-Host "=========================================="
+                                  Write-Host "Configuring IIS Website"
+                                  Write-Host "=========================================="
+
+                                  Import-Module WebAdministration
+
+                                  $siteName = "deploy"
+                                  $physicalPath = "C:\inetpub\wwwroot\deploy"
+                                  $port = 8082
+                                  $appPoolName = "deploy"
+
+                                  Write-Host "Site Name    : $siteName"
+                                  Write-Host "Physical Path: $physicalPath"
+                                  Write-Host "Port         : $port"
+                                  Write-Host "App Pool     : $appPoolName"
+
+                                  if (-not (Test-Path "IIS:\AppPools\$appPoolName")) {
+                                      Write-Host "Creating Application Pool: $appPoolName"
+
+                                      New-WebAppPool -Name $appPoolName
+
+                                      Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedRuntimeVersion -Value "v4.0"
+
+                                      Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedPipelineMode -Value "Integrated"
+                                  }
+                                  else {
+                                      Write-Host "Application Pool already exists: $appPoolName"
+                                  }
+
+                                  if (Test-Path "IIS:\Sites\$siteName") {
+
+                                      Write-Host "Website already exists. Updating configuration..."
+
+                                      Stop-Website -Name $siteName -ErrorAction SilentlyContinue
+
+                                      Set-ItemProperty "IIS:\Sites\$siteName" -Name physicalPath -Value $physicalPath
+
+                                      Start-Website -Name $siteName
+                                  }
+                                  else {
+
+                                      Write-Host "Creating new IIS Website: $siteName"
+
+                                      New-Website -Name $siteName `
+                                                  -PhysicalPath $physicalPath `
+                                                  -ApplicationPool $appPoolName `
+                                                  -Port $port
+                                  }
+
+                                  Start-WebAppPool -Name $appPoolName -ErrorAction SilentlyContinue
+
+                                  Start-Website -Name $siteName -ErrorAction SilentlyContinue
+
+                                  Write-Host "=========================================="
+                                  Write-Host "IIS Website Status"
+                                  Write-Host "=========================================="
+
+                                  Get-Website |
+                                      Where-Object Name -eq $siteName |
+                                      Select-Object Name, State, PhysicalPath, ApplicationPool
+
+                                  Write-Host "=========================================="
+                                  Write-Host "Application Pool Status"
+                                  Write-Host "=========================================="
+
+                                  Get-WebAppPoolState -Name $appPoolName
+
+                                  Write-Host "=========================================="
+                                  Write-Host "IIS Website configured successfully!"
+                                  Write-Host "Access URL: http://localhost:$port"
+                                  Write-Host "=========================================="
+                      timeout: 10m
+                      failureStrategies:
+                        - onFailure:
+                            errors:
+                              - AllErrors
+                            action:
+                              type: Retry
+                              spec:
+                                retryCount: 2
+                                retryIntervals:
+                                  - 30s
+                                onRetryFailure:
+                                  action:
+                                    type: MarkAsFailure
+                      strategy:
+                        repeat:
+                          items: <+stage.output.hosts>
+
+            rollbackSteps: []
+
+          failureStrategies:
+            - onFailure:
+                errors:
+                  - AllErrors
+                action:
+                  type: StageRollback
