@@ -6,136 +6,40 @@ template:
   projectIdentifier: FrameworkDeployment
   orgIdentifier: default
   tags: {}
-
   spec:
-    variables:
-      - name: gitRepoUrl
-        type: String
-        description: "GitHub repository URL to clone"
-        value: <+input>
-
-      - name: gitBranch
-        type: String
-        description: "Git branch to clone"
-        value: <+input>
-
-      - name: artifactName
-        type: String
-        description: "ZIP artifact name inside the Artifact folder"
-        default: FiserveApplication.zip
-        value: <+input>
-
-      - name: iisSiteName
-        type: String
-        description: "IIS website name"
-        default: deploy
-        value: <+input>
-
-      - name: iisPort
-        type: String
-        description: "IIS port number"
-        default: "8082"
-        value: <+input>
-
-      - name: deployPath
-        type: String
-        description: "Deployment path on Azure VM"
-        default: C:\inetpub\wwwroot\deploy
-        value: <+input>
-
-      - name: appPoolName
-        type: String
-        description: "IIS Application Pool name"
-        default: deploy
-        value: <+input>
-
     stages:
       - stage:
           name: deployjob
           identifier: deployjob
           type: Deployment
-
           spec:
             deploymentType: WinRm
-
             service:
               serviceRef: <+input>
-
             environment:
               environmentRef: <+input>
               infrastructureDefinitions:
                 - identifier: <+input>
-
             execution:
               steps:
-
-                # ==========================================================
-                # 1. Clone GitHub Repository
-                # ==========================================================
-
                 - step:
                     type: Command
                     name: CloneGitHubRepo
                     identifier: CloneGitHubRepo
                     timeout: 10m
-
                     spec:
                       onDelegate: false
-
                       commandUnits:
                         - identifier: GitClone
                           name: GitClone
                           type: Script
-
                           spec:
                             shell: PowerShell
-
                             source:
                               type: Inline
-
                               spec:
                                 script: |
-                                  Write-Host "=========================================="
-                                  Write-Host "Cloning Git Repository"
-                                  Write-Host "=========================================="
-
-                                  $repoUrl = "<+pipeline.variables.gitRepoUrl>"
-                                  $branch = "<+pipeline.variables.gitBranch>"
-                                  $clonePath = "C:\temp\repo"
-
-                                  Write-Host "Repository : $repoUrl"
-                                  Write-Host "Branch     : $branch"
-                                  Write-Host "Clone Path : $clonePath"
-
-                                  # Clean previous repository
-                                  if (Test-Path $clonePath) {
-                                      Write-Host "Removing existing repository folder..."
-                                      Remove-Item -Path $clonePath -Recurse -Force
-                                  }
-
-                                  # Clone requested branch
-                                  Write-Host "Starting Git clone..."
-
-                                  git clone `
-                                    --depth 1 `
-                                    --single-branch `
-                                    --branch $branch `
-                                    $repoUrl `
-                                    $clonePath
-
-                                  if ($LASTEXITCODE -ne 0) {
-                                      throw "ERROR: Git clone failed."
-                                  }
-
-                                  if (-not (Test-Path $clonePath)) {
-                                      throw "ERROR: Repository was not cloned to $clonePath"
-                                  }
-
-                                  Write-Host "Repository cloned successfully."
-
-                                  Write-Host "Repository contents:"
-                                  Get-ChildItem -Path $clonePath
-
+                                  git clone --depth 1 --branch <+input> <+input> C:\temp\repo
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -149,79 +53,32 @@ template:
                               onRetryFailure:
                                 action:
                                   type: MarkAsFailure
-
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
-                # ==========================================================
-                # 2. Copy ZIP Artifact
-                # ==========================================================
-
                 - step:
                     type: Command
                     name: CopyFileToAzureVM
                     identifier: CopyFileToAzureVM
                     timeout: 10m
-
                     spec:
                       onDelegate: false
-
                       commandUnits:
                         - identifier: CopyFile
                           name: CopyFile
                           type: Script
-
                           spec:
                             shell: PowerShell
-
                             source:
                               type: Inline
-
                               spec:
                                 script: |
-                                  Write-Host "=========================================="
-                                  Write-Host "Copying ZIP Artifact"
-                                  Write-Host "=========================================="
-
-                                  $artifactName = "<+pipeline.variables.artifactName>"
-                                  $sourcePath = "C:\temp\repo\Artifact\$artifactName"
-                                  $destinationFolder = "C:\temp\github_files1"
-                                  $destinationPath = "$destinationFolder\$artifactName"
-
-                                  Write-Host "Artifact       : $artifactName"
-                                  Write-Host "Source         : $sourcePath"
-                                  Write-Host "Destination    : $destinationPath"
-
-                                  # Create destination folder
-                                  if (-not (Test-Path $destinationFolder)) {
-                                      Write-Host "Creating destination folder..."
-                                      New-Item `
-                                        -ItemType Directory `
-                                        -Path $destinationFolder `
-                                        -Force | Out-Null
+                                  Write-Host "Copying file on Azure VM..."
+                                  if (-not (Test-Path "C:\temp\github_files1")) {
+                                      New-Item -ItemType Directory -Path "C:\temp\github_files1" -Force
                                   }
-
-                                  # Validate artifact
-                                  if (-not (Test-Path $sourcePath)) {
-                                      throw "ERROR: Artifact not found: $sourcePath"
-                                  }
-
-                                  # Copy artifact
-                                  Copy-Item `
-                                    -Path $sourcePath `
-                                    -Destination $destinationPath `
-                                    -Force
-
-                                  if (-not (Test-Path $destinationPath)) {
-                                      throw "ERROR: Artifact copy failed."
-                                  }
-
-                                  Write-Host "Artifact copied successfully."
-
-                                  Get-Item $destinationPath |
-                                    Select-Object Name, Length, LastWriteTime
-
+                                  Copy-Item "C:\temp\repo\Artifact\*.zip" -Destination "C:\temp\github_files1\" -Force
+                                  Write-Host "File copied successfully to C:\temp\github_files1\"
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -235,92 +92,52 @@ template:
                               onRetryFailure:
                                 action:
                                   type: MarkAsFailure
-
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
-                # ==========================================================
-                # 3. Extract ZIP to IIS Deployment Path
-                # ==========================================================
-
                 - step:
                     type: Command
                     name: ExtractToIIS
                     identifier: ExtractToIIS
                     timeout: 10m
-
                     spec:
                       onDelegate: false
-
                       commandUnits:
                         - identifier: ExtractZip
                           name: ExtractZip
                           type: Script
-
                           spec:
                             shell: PowerShell
-
                             source:
                               type: Inline
-
                               spec:
                                 script: |
                                   Write-Host "=========================================="
-                                  Write-Host "Extracting ZIP to IIS Deployment Folder"
+                                  Write-Host "Extracting ZIP to IIS wwwroot\deploy"
                                   Write-Host "=========================================="
-
-                                  $artifactName = "<+pipeline.variables.artifactName>"
-                                  $zipFile = "C:\temp\github_files1\$artifactName"
-                                  $extractPath = "<+pipeline.variables.deployPath>"
-
-                                  Write-Host "ZIP File     : $zipFile"
-                                  Write-Host "Extract Path : $extractPath"
-
-                                  # Validate ZIP
-                                  if (-not (Test-Path $zipFile)) {
-                                      throw "ERROR: ZIP file not found: $zipFile"
+                                  $zipFolder = "C:\temp\github_files1"
+                                  $extractPath = "<+input>"
+                                  $zipFile = Get-ChildItem -Path $zipFolder -Filter "*.zip" -File | Select-Object -First 1
+                                  if (-not $zipFile) {
+                                      throw "ERROR: No ZIP file found in $zipFolder"
                                   }
-
-                                  # Create deployment directory
+                                  Write-Host "ZIP Found: $($zipFile.FullName)"
+                                  Write-Host "Extract Path: $extractPath"
                                   if (-not (Test-Path $extractPath)) {
-                                      Write-Host "Creating deployment directory..."
-                                      New-Item `
-                                        -ItemType Directory `
-                                        -Path $extractPath `
-                                        -Force | Out-Null
+                                      Write-Host "Creating directory: $extractPath"
+                                      New-Item -ItemType Directory -Path $extractPath -Force | Out-Null
                                   }
                                   else {
-                                      Write-Host "Cleaning existing deployment directory..."
-
-                                      Get-ChildItem `
-                                        -Path $extractPath `
-                                        -Force |
-                                      Remove-Item `
-                                        -Recurse `
-                                        -Force `
-                                        -ErrorAction SilentlyContinue
+                                      Write-Host "Cleaning existing deploy folder..."
+                                      Remove-Item -Path "$extractPath\*" -Recurse -Force -ErrorAction SilentlyContinue
                                   }
-
-                                  # Extract ZIP
-                                  Write-Host "Extracting application..."
-
-                                  Expand-Archive `
-                                    -Path $zipFile `
-                                    -DestinationPath $extractPath `
-                                    -Force
-
-                                  Write-Host "Extraction completed successfully."
-
+                                  Write-Host "Extracting ZIP..."
+                                  Expand-Archive -Path $zipFile.FullName -DestinationPath $extractPath -Force
                                   Write-Host "=========================================="
-                                  Write-Host "Deployment Folder Contents"
+                                  Write-Host "Extraction completed successfully!"
                                   Write-Host "=========================================="
-
-                                  Get-ChildItem `
-                                    -Path $extractPath `
-                                    -Recurse |
-                                  Select-Object FullName, Length, LastWriteTime
-
+                                  Write-Host "Contents of $extractPath :"
+                                  Get-ChildItem -Path $extractPath | Format-Table Name, Length, LastWriteTime
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -336,164 +153,71 @@ template:
                               onRetryFailure:
                                 action:
                                   type: MarkAsFailure
-
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
-                # ==========================================================
-                # 4. Configure IIS Website
-                # ==========================================================
-
                 - step:
                     type: Command
                     name: ConfigureIISWebsite
                     identifier: ConfigureIISWebsite
                     timeout: 10m
-
                     spec:
                       onDelegate: false
-
                       commandUnits:
                         - identifier: CreateIISSite
                           name: CreateIISSite
                           type: Script
-
                           spec:
                             shell: PowerShell
-
                             source:
                               type: Inline
-
                               spec:
                                 script: |
                                   Write-Host "=========================================="
                                   Write-Host "Configuring IIS Website"
                                   Write-Host "=========================================="
-
                                   Import-Module WebAdministration
-
-                                  $siteName = "<+pipeline.variables.iisSiteName>"
-                                  $physicalPath = "<+pipeline.variables.deployPath>"
-                                  $port = [int]"<+pipeline.variables.iisPort>"
-                                  $appPoolName = "<+pipeline.variables.appPoolName>"
-
-                                  Write-Host "Site Name     : $siteName"
-                                  Write-Host "Physical Path : $physicalPath"
-                                  Write-Host "Port          : $port"
-                                  Write-Host "App Pool      : $appPoolName"
-
-                                  # ==================================================
-                                  # Validate deployment directory
-                                  # ==================================================
-
-                                  if (-not (Test-Path $physicalPath)) {
-                                      throw "ERROR: IIS deployment path does not exist: $physicalPath"
-                                  }
-
-                                  # ==================================================
-                                  # Create Application Pool
-                                  # ==================================================
-
+                                  $siteName = "<+input>"
+                                  $physicalPath = "<+input>"
+                                  $port = [int]"<+input>"
+                                  $appPoolName = "<+input>"
+                                  Write-Host "Site Name    : $siteName"
+                                  Write-Host "Physical Path: $physicalPath"
+                                  Write-Host "Port         : $port"
+                                  Write-Host "App Pool     : $appPoolName"
                                   if (-not (Test-Path "IIS:\AppPools\$appPoolName")) {
-
                                       Write-Host "Creating Application Pool: $appPoolName"
-
                                       New-WebAppPool -Name $appPoolName
-
-                                      Set-ItemProperty `
-                                        "IIS:\AppPools\$appPoolName" `
-                                        -Name managedRuntimeVersion `
-                                        -Value "v4.0"
-
-                                      Set-ItemProperty `
-                                        "IIS:\AppPools\$appPoolName" `
-                                        -Name managedPipelineMode `
-                                        -Value "Integrated"
+                                      Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedRuntimeVersion -Value "v4.0"
+                                      Set-ItemProperty "IIS:\AppPools\$appPoolName" -Name managedPipelineMode -Value "Integrated"
                                   }
                                   else {
                                       Write-Host "Application Pool already exists: $appPoolName"
                                   }
-
-                                  # ==================================================
-                                  # Configure IIS Website
-                                  # ==================================================
-
                                   if (Test-Path "IIS:\Sites\$siteName") {
-
-                                      Write-Host "IIS Website already exists."
-                                      Write-Host "Updating website configuration..."
-
-                                      Stop-Website `
-                                        -Name $siteName `
-                                        -ErrorAction SilentlyContinue
-
-                                      Set-ItemProperty `
-                                        "IIS:\Sites\$siteName" `
-                                        -Name physicalPath `
-                                        -Value $physicalPath
-
-                                      Set-ItemProperty `
-                                        "IIS:\Sites\$siteName" `
-                                        -Name applicationPool `
-                                        -Value $appPoolName
-
-                                      Write-Host "Website configuration updated."
+                                      Write-Host "Website already exists. Updating configuration..."
+                                      Stop-Website -Name $siteName -ErrorAction SilentlyContinue
+                                      Set-ItemProperty "IIS:\Sites\$siteName" -Name physicalPath -Value $physicalPath
+                                      Start-Website -Name $siteName
                                   }
                                   else {
-
-                                      Write-Host "Creating IIS Website: $siteName"
-
-                                      New-Website `
-                                        -Name $siteName `
-                                        -PhysicalPath $physicalPath `
-                                        -ApplicationPool $appPoolName `
-                                        -Port $port
-
-                                      Write-Host "IIS Website created successfully."
+                                      Write-Host "Creating new IIS Website: $siteName"
+                                      New-Website -Name $siteName -PhysicalPath $physicalPath -ApplicationPool $appPoolName -Port $port
                                   }
-
-                                  # ==================================================
-                                  # Start Application Pool and Website
-                                  # ==================================================
-
-                                  Start-WebAppPool `
-                                    -Name $appPoolName `
-                                    -ErrorAction SilentlyContinue
-
-                                  Start-Website `
-                                    -Name $siteName `
-                                    -ErrorAction SilentlyContinue
-
-                                  # ==================================================
-                                  # Display IIS Website Status
-                                  # ==================================================
-
+                                  Start-WebAppPool -Name $appPoolName -ErrorAction SilentlyContinue
+                                  Start-Website -Name $siteName -ErrorAction SilentlyContinue
                                   Write-Host "=========================================="
                                   Write-Host "IIS Website Status"
                                   Write-Host "=========================================="
-
-                                  Get-Website |
-                                    Where-Object Name -eq $siteName |
-                                    Select-Object `
-                                      Name,
-                                      State,
-                                      PhysicalPath,
-                                      ApplicationPool
-
+                                  Get-Website | Where-Object Name -eq $siteName | Select-Object Name, State, PhysicalPath, ApplicationPool
                                   Write-Host "=========================================="
                                   Write-Host "Application Pool Status"
                                   Write-Host "=========================================="
-
-                                  Get-WebAppPoolState `
-                                    -Name $appPoolName
-
+                                  Get-WebAppPoolState -Name $appPoolName
                                   Write-Host "=========================================="
-                                  Write-Host "Deployment Completed Successfully"
-                                  Write-Host "=========================================="
-
+                                  Write-Host "IIS Website configured successfully!"
                                   Write-Host "Access URL: http://localhost:$port"
-
+                                  Write-Host "=========================================="
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -507,13 +231,10 @@ template:
                               onRetryFailure:
                                 action:
                                   type: MarkAsFailure
-
                     strategy:
                       repeat:
                         items: <+stage.output.hosts>
-
               rollbackSteps: []
-
           failureStrategies:
             - onFailure:
                 errors:
