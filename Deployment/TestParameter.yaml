@@ -19,7 +19,7 @@ template:
             environment:
               environmentRef: <+input>
               infrastructureDefinitions:
-                - identifier: <+input>
+                - identifier: azurevm
             execution:
               steps:
                 - step:
