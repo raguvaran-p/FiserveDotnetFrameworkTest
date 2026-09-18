@@ -19,8 +19,8 @@ template:
             environment:
               environmentRef: <+input>
               deployToAll: false
-              infrastructureDefinitions: <+input>
-                #- identifier: azurevm
+              infrastructureDefinitions:
+                - identifier: azurevm
             execution:
               steps:
                 - step:
