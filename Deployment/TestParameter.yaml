@@ -5,6 +5,7 @@ template:
   type: Pipeline
   projectIdentifier: FrameworkDeployment
   orgIdentifier: default
+  description: IIS deployment template with runtime infrastructure selection
   tags: {}
   spec:
     stages:
@@ -19,8 +20,7 @@ template:
             environment:
               environmentRef: <+input>
               deployToAll: false
-              infrastructureDefinitions:
-                - identifier: azurevm
+              infrastructureDefinitions: <+input>
             execution:
               steps:
                 - step:
