@@ -39,7 +39,7 @@ template:
                               type: Inline
                               spec:
                                 script: |
-                                  git clone --depth 1 --branch <+input> C:\temp\repo
+                                  git clone --depth 1 --branch <+pipeline.variables.branch> C:\temp\repo
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -116,7 +116,7 @@ template:
                                   Write-Host "Extracting ZIP to IIS wwwroot\deploy"
                                   Write-Host "=========================================="
                                   $zipFolder = "C:\temp\github_files1"
-                                  $extractPath = "<+input>"
+                                  $extractPath = "<+pipeline.variables.extractPath>"
                                   $zipFile = Get-ChildItem -Path $zipFolder -Filter "*.zip" -File | Select-Object -First 1
                                   if (-not $zipFile) {
                                       throw "ERROR: No ZIP file found in $zipFolder"
@@ -177,10 +177,10 @@ template:
                                   Write-Host "Configuring IIS Website"
                                   Write-Host "=========================================="
                                   Import-Module WebAdministration
-                                  $siteName = "<+input>"
-                                  $physicalPath = "<+input>"
-                                  $port = "<+input>"
-                                  $appPoolName = "<+input>"
+                                  $siteName = "<+pipeline.variables.siteName>"
+                                  $physicalPath = "<+pipeline.variables.physicalPath>"
+                                  $port = "<+pipeline.variables.port>"
+                                  $appPoolName = "<+pipeline.variables.appPoolName>"
                                   Write-Host "Site Name    : $siteName"
                                   Write-Host "Physical Path: $physicalPath"
                                   Write-Host "Port         : $port"
