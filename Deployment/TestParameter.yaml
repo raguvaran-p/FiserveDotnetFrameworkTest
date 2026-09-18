@@ -39,7 +39,7 @@ template:
                               type: Inline
                               spec:
                                 script: |
-                                  git clone --depth 1 --branch <+input> <+input> C:\temp\repo
+                                  git clone --depth 1 --branch <+input> C:\temp\repo
                     failureStrategies:
                       - onFailure:
                           errors:
@@ -179,7 +179,7 @@ template:
                                   Import-Module WebAdministration
                                   $siteName = "<+input>"
                                   $physicalPath = "<+input>"
-                                  $port = [int]"<+input>"
+                                  $port = "<+input>"
                                   $appPoolName = "<+input>"
                                   Write-Host "Site Name    : $siteName"
                                   Write-Host "Physical Path: $physicalPath"
