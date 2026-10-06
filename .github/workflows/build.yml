@@ -6,75 +6,70 @@ on:
       - gcp
 
   workflow_dispatch:
-  
+
+# id-token: write is required for Workload Identity Federation (keyless auth to GCP)
 permissions:
-  contents: write
-  
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: fiserve-poc-dev
+  GCS_BUCKET: fiserve-poc-dev-artifacts   # must match the bucket you create
+  ZIP_NAME: FiserveApplication.zip
+
 jobs:
   build-publish:
     name: Build, Publish and Upload ZIP
-    runs-on: windows-2022
+    runs-on: windows-2022   # .NET Framework needs a Windows runner
 
     steps:
 
       # ==========================================================
       # 1. Checkout
       # ==========================================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
+
       # ==========================================================
-      # Azure login
+      # 2. Authenticate to Google Cloud (replaces Azure Login)
       # ==========================================================
-      - name: Azure Login
-        uses: azure/login@v2
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-      # ==========================================================
-      # 2. Setup .NET
-      # ==========================================================
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
-      #- name: Setup .NET 10
-           # uses: actions/setup-dotnet@v4
-            #with:
-              #dotnet-version: 10.0.x
-
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
 
       # ==========================================================
-      # 3. Setup MSBuild
+      # 3. Setup MSBuild + NuGet
       # ==========================================================
-
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
 
       # ==========================================================
       # 4. Restore NuGet packages
       # ==========================================================
-
       - name: Restore NuGet packages
         shell: pwsh
         run: |
           $packagesDirectory = Join-Path $env:GITHUB_WORKSPACE "packages"
+          New-Item -ItemType Directory -Path $packagesDirectory -Force | Out-Null
 
-          New-Item `
-            -ItemType Directory `
-            -Path $packagesDirectory `
-            -Force | Out-Null
+          nuget restore FiserveDotnetFrameworkTest.csproj -PackagesDirectory "$packagesDirectory"
 
-          nuget restore FiserveDotnetFrameworkTest.csproj `
-            -PackagesDirectory "$packagesDirectory"
-
-          if ($LASTEXITCODE -ne 0) {
-            throw "NuGet restore failed."
-          }
-
+          if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed." }
 
       # ==========================================================
       # 5. Build
       # ==========================================================
-
       - name: Build application
         shell: pwsh
         run: |
@@ -82,33 +77,20 @@ jobs:
             /p:Configuration=Release `
             /p:Platform="AnyCPU"
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "Application build failed."
-          }
-
+          if ($LASTEXITCODE -ne 0) { throw "Application build failed." }
 
       # ==========================================================
       # 6. Publish
       # ==========================================================
-
       - name: Publish application
         shell: pwsh
         run: |
-          $publishDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "publish"
+          $publishDirectory = Join-Path $env:GITHUB_WORKSPACE "publish"
 
           if (Test-Path $publishDirectory) {
-            Remove-Item `
-              $publishDirectory `
-              -Recurse `
-              -Force
+            Remove-Item $publishDirectory -Recurse -Force
           }
-
-          New-Item `
-            -ItemType Directory `
-            -Path $publishDirectory `
-            -Force | Out-Null
+          New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
 
           msbuild FiserveDotnetFrameworkTest.csproj `
             /t:WebPublish `
@@ -118,103 +100,45 @@ jobs:
             /p:publishUrl="$publishDirectory" `
             /p:DeleteExistingFiles=true
 
-          if ($LASTEXITCODE -ne 0) {
-            throw "Application publish failed."
-          }
-
+          if ($LASTEXITCODE -ne 0) { throw "Application publish failed." }
 
       # ==========================================================
-      # 7. Create ZIP inside Artifact folder
+      # 7. Create ZIP
       # ==========================================================
-
       - name: Create ZIP
         shell: pwsh
         run: |
-          $publishDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "publish"
+          $publishDirectory  = Join-Path $env:GITHUB_WORKSPACE "publish"
+          $artifactDirectory = Join-Path $env:GITHUB_WORKSPACE "Artifact"
+          $zipPath           = Join-Path $artifactDirectory $env:ZIP_NAME
 
-          $artifactDirectory = Join-Path `
-            $env:GITHUB_WORKSPACE `
-            "Artifact"
-
-          $zipPath = Join-Path `
-            $artifactDirectory `
-            "FiserveApplication.zip"
-
-          # Create Artifact folder
           if (Test-Path $artifactDirectory) {
-            Remove-Item `
-              $artifactDirectory `
-              -Recurse `
-              -Force
+            Remove-Item $artifactDirectory -Recurse -Force
           }
+          New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
 
-          New-Item `
-            -ItemType Directory `
-            -Path $artifactDirectory `
-            -Force | Out-Null
+          Compress-Archive -Path "$publishDirectory\*" -DestinationPath $zipPath -Force
 
-          # Create ZIP directly inside Artifact
-          Compress-Archive `
-            -Path "$publishDirectory\*" `
-            -DestinationPath $zipPath `
-            -Force
+          if (!(Test-Path $zipPath)) { throw "ZIP file was not created." }
 
-          if (!(Test-Path $zipPath)) {
-            throw "ZIP file was not created."
-          }
-
-          Write-Host "ZIP created successfully:"
-          Write-Host $zipPath
+          Write-Host "ZIP created successfully: $zipPath"
 
       # ==========================================================
-      # 8. Upload ZIP artifact
+      # 8. Upload ZIP as GitHub build artifact
       # ==========================================================
-
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
           name: FiserveApplication
-          path: Artifact/FiserveApplication.zip
+          path: Artifact/${{ env.ZIP_NAME }}
           if-no-files-found: error
 
       # ==========================================================
-      # 9. Commit ZIP into Artifact folder in GitHub branch
+      # 9. Upload ZIP to Google Cloud Storage (replaces Azure Blob)
       # ==========================================================
-
-      - name: Commit ZIP to Artifact folder
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add Artifact/FiserveApplication.zip
-
-          if (git diff --cached --quiet) {
-            Write-Host "No changes to commit."
-          }
-          else {
-            git commit -m "Add FiserveApplication ZIP artifact"
-            git push
-          }    
-
-      # ==========================================================
-      # 10. Upload ZIP to Azure Blob Storage
-      # ==========================================================
-
-      - name: Upload ZIP to Azure Storage
-        shell: pwsh
-        env:
-          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
-        run: |
-          az storage blob upload `
-            --account-name "fiservstacc1" `
-            --account-key "$env:AZURE_STORAGE_ACCOUNT_KEY" `
-            --container-name "harnesscontainer" `
-            --name "FiserveApplication.zip" `
-            --file "$env:GITHUB_WORKSPACE\Artifact\FiserveApplication.zip" `
-            --auth-mode key `
-            --overwrite true
-
-    
+      - name: Upload ZIP to Google Cloud Storage
+        uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: Artifact/${{ env.ZIP_NAME }}
+          destination: ${{ env.GCS_BUCKET }}
+          process_gcloudignore: false
